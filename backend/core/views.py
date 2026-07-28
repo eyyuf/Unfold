@@ -13,7 +13,7 @@ import resend
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from accounts.models import User
+from accounts.models import ConsentRecord, User
 from checkins.models import CheckIn, FinalReflection
 from experiments.models import Experiment, SavedExperiment, UserExperiment
 from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, PasswordResetConfirmSerializer, RegistrationSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
@@ -114,11 +114,70 @@ def me_view(request):
             status=status.HTTP_403_FORBIDDEN,
         )
     if request.method == "PATCH":
+        previous_analytics_consent = request.user.analytics_consent
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        if "analytics_consent" in request.data and request.user.analytics_consent != previous_analytics_consent:
+            ConsentRecord.objects.create(
+                user=request.user,
+                kind=ConsentRecord.Kind.ANALYTICS,
+                granted=request.user.analytics_consent,
+            )
         return Response(serializer.data)
     return Response(UserSerializer(request.user).data)
+
+
+@api_view(["GET"])
+def consent_history(request):
+    return Response([
+        {
+            "id": record.id,
+            "kind": record.get_kind_display(),
+            "granted": record.granted,
+            "policy_version": record.policy_version,
+            "created_at": record.created_at,
+        }
+        for record in request.user.consent_records.all()
+    ])
+
+
+@api_view(["GET"])
+def export_user_data(request):
+    experiments = UserExperiment.objects.filter(user=request.user).select_related("experiment__category").prefetch_related("checkins")
+    saved = SavedExperiment.objects.filter(user=request.user).select_related("experiment__category").prefetch_related("experiment__daily_tasks")
+    return Response({
+        "exported_at": timezone.now(),
+        "profile": UserSerializer(request.user).data,
+        "experiments": [
+            {
+                **report_for(item),
+                "reason": item.reason,
+                "checkins": CheckInSerializer(item.checkins.all(), many=True).data,
+            }
+            for item in experiments
+        ],
+        "saved_experiments": SavedExperimentSerializer(saved, many=True).data,
+        "consent_history": [
+            {
+                "kind": record.get_kind_display(),
+                "granted": record.granted,
+                "policy_version": record.policy_version,
+                "created_at": record.created_at,
+            }
+            for record in request.user.consent_records.all()
+        ],
+    })
+
+
+@api_view(["POST"])
+def delete_account(request):
+    if request.data.get("confirmation") != "DELETE":
+        return Response({"detail": "Type DELETE to confirm account deletion."}, status=status.HTTP_400_BAD_REQUEST)
+    user = request.user
+    logout(request)
+    user.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(["POST"])
 def start_experiment(request, slug):

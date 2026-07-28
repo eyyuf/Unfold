@@ -21,6 +21,7 @@ class User(AbstractUser):
     timezone = models.CharField(max_length=64, default="Africa/Nairobi")
     reminder_time = models.TimeField(null=True, blank=True)
     reminders_enabled = models.BooleanField(default=False)
+    email_reminders_enabled = models.BooleanField(default=True)
     onboarding_answers = models.JSONField(default=dict, blank=True)
     analytics_consent = models.BooleanField(default=False)
     terms_accepted_at = models.DateTimeField(null=True, blank=True)

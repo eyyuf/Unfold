@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -16,15 +16,15 @@ import {
 
 // ─── Color tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:      '#09090B',
-  bg2:     '#111113',
-  s1:      '#18181B',
-  s2:      '#27272A',
-  br:      '#3F3F46',
-  t1:      '#FAFAFA',
-  t2:      '#D4D4D8',
-  t3:      '#A1A1AA',
-  t4:      '#71717A',
+  bg:      'var(--bg)',
+  bg2:     'var(--bg2)',
+  s1:      'var(--s1)',
+  s2:      'var(--s2)',
+  br:      'var(--br)',
+  t1:      'var(--t1)',
+  t2:      'var(--t2)',
+  t3:      'var(--t3)',
+  t4:      'var(--t4)',
   acc:     '#22C55E',
   accH:    '#16A34A',
   accS:    'rgba(34,197,94,0.12)',
@@ -39,10 +39,20 @@ const C = {
   sky:     '#38BDF8',
 }
 
+type ThemePreference = 'dark' | 'light' | 'system'
+
+function applyThemePreference(preference: ThemePreference) {
+  const resolved = preference === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : preference
+  document.documentElement.dataset.theme = resolved
+  document.documentElement.style.colorScheme = resolved
+}
+
 type Screen = 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'privacy' | 'terms' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
 type UserData = {
   id: number; email: string; display_name: string; timezone?: string
-  reminder_time?: string | null; reminders_enabled?: boolean
+  reminder_time?: string | null; reminders_enabled?: boolean; email_reminders_enabled?: boolean
   onboarding_answers?: { reason?: string; available_time?: string; interests?: string[] }
   analytics_consent?: boolean
 }
@@ -1808,19 +1818,52 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
 
 // ─── SCREEN: Profile ──────────────────────────────────────────────────────────
 function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark')
+  const [theme, setTheme] = useState<ThemePreference>(() => (localStorage.getItem('unfold-theme') as ThemePreference | null) ?? 'dark')
+  const [showConsents, setShowConsents] = useState(false)
   const queryClient = useQueryClient()
   const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData | null>('/auth/me/') })
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
+  const [timezone, setTimezone] = useState(user?.timezone ?? 'Africa/Nairobi')
+  useEffect(() => {
+    if (!user) return
+    setDisplayName(user.display_name ?? '')
+    setReminderTime(user.reminder_time?.slice(0, 5) ?? '19:30')
+    setTimezone(user.timezone ?? 'Africa/Nairobi')
+  }, [user])
   const updateProfile = useMutation({
     mutationFn: (data: object) => apiRequest<UserData>('/auth/me/', { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: (data) => queryClient.setQueryData(['me'], data),
+  })
+  const { data: consents = [] } = useQuery({
+    queryKey: ['consent-history'],
+    queryFn: () => apiRequest<{ id: number; kind: string; granted: boolean; policy_version: string; created_at: string }[]>('/auth/consents/'),
+    enabled: showConsents,
+  })
+  const exportData = useMutation({
+    mutationFn: () => apiRequest<Record<string, unknown>>('/auth/export/'),
+    onSuccess: (data) => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `unfold-data-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    },
+  })
+  const deleteUser = useMutation({
+    mutationFn: () => apiRequest('/auth/delete-account/', { method: 'POST', body: JSON.stringify({ confirmation: 'DELETE' }) }),
+    onSuccess: () => { queryClient.clear(); setScreen('landing') },
   })
   const logoutUser = useMutation({
     mutationFn: () => apiRequest('/auth/logout/', { method: 'POST' }),
     onSuccess: () => { queryClient.clear(); setScreen('landing') },
   })
+  const chooseTheme = (preference: ThemePreference) => {
+    setTheme(preference)
+    localStorage.setItem('unfold-theme', preference)
+    applyThemePreference(preference)
+  }
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1842,42 +1885,48 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         {[
           { label: 'Display name', value: user?.display_name || 'Not set' },
           { label: 'Email', value: user?.email || '' },
-          { label: 'Timezone', value: user?.timezone || 'Africa/Nairobi' },
         ].map(({ label, value }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${C.br}` }}>
             <span style={{ fontSize: 14, color: C.t3 }}>{label}</span>
             <span style={{ fontSize: 14, color: C.t1 }}>{value}</span>
           </div>
         ))}
+        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${C.br}`, color: C.t3, fontSize: 14 }}>
+          Timezone
+          <select value={timezone} onChange={(event) => { setTimezone(event.target.value); updateProfile.mutate({ timezone: event.target.value }) }} style={{ background: C.s2, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 8, padding: 8 }}>
+            {['Africa/Nairobi', 'Africa/Lagos', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney'].map((zone) => <option key={zone}>{zone}</option>)}
+          </select>
+        </label>
       </Card>
 
       {/* Reminders */}
       <Card style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Reminders</h2>
         {[
-          { label: 'Daily reminders', active: Boolean(user?.reminders_enabled) },
-          { label: 'Email reminders', active: false },
-        ].map(({ label, active }) => (
+          { label: 'Enable reminders', field: 'reminders_enabled', active: Boolean(user?.reminders_enabled) },
+          { label: 'Send by email', field: 'email_reminders_enabled', active: Boolean(user?.email_reminders_enabled) },
+        ].map(({ label, field, active }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 14, color: C.t2 }}>{label}</span>
-            <div onClick={() => label === 'Daily reminders' && updateProfile.mutate({ reminders_enabled: !active })} style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.acc : C.s2, position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+            <button role="switch" aria-checked={active} aria-label={label} onClick={() => updateProfile.mutate({ [field]: !active })} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 12, background: active ? C.acc : C.s2, position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
               <div style={{ position: 'absolute', top: 3, left: active ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: C.t1, transition: 'left 0.2s' }} />
-            </div>
+            </button>
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${C.br}` }}>
           <span style={{ fontSize: 14, color: C.t2 }}>Preferred time</span>
           <input aria-label="Preferred reminder time" type="time" value={reminderTime} onChange={(event) => { setReminderTime(event.target.value); updateProfile.mutate({ reminder_time: event.target.value }) }} style={{ background: C.s2, border: `1px solid ${C.br}`, color: C.t1, borderRadius: 8, padding: 8 }} />
         </div>
+        <p style={{ color: C.t4, fontSize: 12, margin: '12px 0 0' }}>Reminders use {timezone}. A preview: “Today’s experiment is ready when you are.”</p>
+        {updateProfile.error && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{updateProfile.error.message}</p>}
       </Card>
-      <Btn variant="ghost" full onClick={() => logoutUser.mutate()}>Log out</Btn>
 
       {/* Appearance */}
       <Card style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Appearance</h2>
         <div style={{ display: 'flex', gap: 10 }}>
           {([['dark', 'Dark', Moon], ['light', 'Light', Sun], ['system', 'System', Settings]] as const).map(([id, label, Icon]) => (
-            <button key={id} onClick={() => setTheme(id)} style={{
+            <button key={id} onClick={() => chooseTheme(id)} style={{
               flex: 1, padding: '10px', borderRadius: 10, border: `1px solid ${theme === id ? C.accB : C.br}`,
               background: theme === id ? C.accS : C.s1, color: theme === id ? C.acc : C.t3,
               fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -1896,18 +1945,37 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <Lock size={16} color={C.t4} /> Privacy & data
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[{ label: 'View consent history', Icon: Shield }, { label: 'Export your data', Icon: Download }].map(({ label, Icon }) => (
-            <button key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: C.s2, border: 'none', color: C.t2, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon size={15} color={C.t4} />{label}</span>
-              <ChevronRight size={14} color={C.t4} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 10, background: C.s2 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: C.t2, fontSize: 14 }}><BarChart2 size={15} color={C.t4} />Optional analytics</span>
+            <button role="switch" aria-checked={Boolean(user?.analytics_consent)} aria-label="Optional analytics consent" onClick={() => updateProfile.mutate({ analytics_consent: !user?.analytics_consent })} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 12, background: user?.analytics_consent ? C.acc : C.bg2, position: 'relative', cursor: 'pointer' }}>
+              <span style={{ position: 'absolute', top: 3, left: user?.analytics_consent ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: C.t1, transition: 'left 0.2s' }} />
             </button>
-          ))}
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: `1px solid rgba(239,68,68,0.2)`, color: C.red, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
+          </div>
+          <button onClick={() => setShowConsents((visible) => !visible)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: C.s2, border: 'none', color: C.t2, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Shield size={15} color={C.t4} />View consent history</span>
+            <ChevronRight size={14} color={C.t4} style={{ transform: showConsents ? 'rotate(90deg)' : undefined }} />
+          </button>
+          {showConsents && <div style={{ background: C.bg2, borderRadius: 10, padding: '4px 14px' }}>
+            {!consents.length && <p style={{ color: C.t4, fontSize: 13 }}>No consent records found.</p>}
+            {consents.map((record) => <div key={record.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.br}`, fontSize: 12 }}>
+              <span style={{ color: C.t2 }}>{record.kind}: {record.granted ? 'Granted' : 'Declined'}</span>
+              <span style={{ color: C.t4 }}>{new Date(record.created_at).toLocaleDateString()}</span>
+            </div>)}
+          </div>}
+          <button disabled={exportData.isPending} onClick={() => exportData.mutate()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: C.s2, border: 'none', color: C.t2, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Download size={15} color={C.t4} />{exportData.isPending ? 'Preparing export…' : 'Export your data'}</span>
+            <ChevronRight size={14} color={C.t4} />
+          </button>
+          <button disabled={deleteUser.isPending} onClick={() => {
+            if (window.prompt('This permanently deletes your account and all evidence. Type DELETE to continue.') === 'DELETE') deleteUser.mutate()
+          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: `1px solid rgba(239,68,68,0.2)`, color: C.red, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Trash2 size={15} />Delete account</span>
             <ChevronRight size={14} />
           </button>
+          {(exportData.error || deleteUser.error) && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{(exportData.error || deleteUser.error)?.message}</p>}
         </div>
       </Card>
+      <Btn variant="ghost" full disabled={logoutUser.isPending} onClick={() => logoutUser.mutate()}>Log out</Btn>
     </div>
   )
 }
@@ -1984,6 +2052,16 @@ function HelpScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
+  useEffect(() => {
+    const preference = (localStorage.getItem('unfold-theme') as ThemePreference | null) ?? 'dark'
+    applyThemePreference(preference)
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    const handleSystemTheme = () => {
+      if ((localStorage.getItem('unfold-theme') ?? 'dark') === 'system') applyThemePreference('system')
+    }
+    media.addEventListener('change', handleSystemTheme)
+    return () => media.removeEventListener('change', handleSystemTheme)
+  }, [])
   const paths: Record<Screen, string> = {
     landing: '/', login: '/login', register: '/register', 'forgot-password': '/forgot-password', 'reset-password': '/reset-password',
     privacy: '/privacy', terms: '/terms', onboarding: '/onboarding', home: '/app', library: '/app/explore',

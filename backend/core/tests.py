@@ -183,4 +183,27 @@ class ApiFlowTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.check_password("a-new-secure-password"))
 
+    def test_privacy_controls_export_consent_and_delete_account(self):
+        user = User.objects.create_user("privacy@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        consent = self.client.patch("/api/v1/auth/me/", {"analytics_consent": True}, format="json")
+        self.assertEqual(consent.status_code, 200)
+        self.assertTrue(consent.data["analytics_consent"])
+
+        history = self.client.get("/api/v1/auth/consents/")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.data[0]["kind"], "Optional analytics")
+        self.assertTrue(history.data[0]["granted"])
+
+        exported = self.client.get("/api/v1/auth/export/")
+        self.assertEqual(exported.status_code, 200)
+        self.assertEqual(exported.data["profile"]["email"], user.email)
+        self.assertIn("experiments", exported.data)
+
+        rejected = self.client.post("/api/v1/auth/delete-account/", {"confirmation": "delete"}, format="json")
+        self.assertEqual(rejected.status_code, 400)
+        deleted = self.client.post("/api/v1/auth/delete-account/", {"confirmation": "DELETE"}, format="json")
+        self.assertEqual(deleted.status_code, 204)
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())
+
 # Create your tests here.

@@ -21,7 +21,8 @@ class Command(BaseCommand):
         resend.api_key = api_key
         now = timezone.now()
         active_items = UserExperiment.objects.filter(
-            status="active", user__reminders_enabled=True, user__reminder_time__isnull=False,
+            status="active", user__reminders_enabled=True, user__email_reminders_enabled=True,
+            user__reminder_time__isnull=False,
         ).select_related("user", "experiment")
         sent = 0
         for item in active_items:

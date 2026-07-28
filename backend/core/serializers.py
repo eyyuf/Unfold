@@ -10,7 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=False)
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "timezone", "reminder_time", "reminders_enabled", "onboarding_answers", "analytics_consent", "password"]
+        fields = ["id", "email", "display_name", "timezone", "reminder_time", "reminders_enabled", "email_reminders_enabled", "onboarding_answers", "analytics_consent", "password"]
     def create(self, data): return User.objects.create_user(**data)
     def update(self, instance, data):
         data.pop("password", None)

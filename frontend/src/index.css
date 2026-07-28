@@ -17,6 +17,18 @@
   --acc-border: rgba(34, 197, 94, 0.3);
 }
 
+:root[data-theme='light'] {
+  --bg: #F7F7F8;
+  --bg2: #FFFFFF;
+  --s1: #FFFFFF;
+  --s2: #ECEDEF;
+  --br: #D4D4D8;
+  --t1: #18181B;
+  --t2: #3F3F46;
+  --t3: #52525B;
+  --t4: #71717A;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
@@ -55,6 +67,15 @@ body {
 
 .fade-up { animation: fadeSlideUp 0.35s ease both; }
 .pulse-acc { animation: pulse-glow 2.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 .desktop-sidebar { display: flex !important; }
 .mobile-nav { display: none !important; }
