@@ -81,4 +81,23 @@ describe("Unfold navigation and account forms", () => {
       ).toBeInTheDocument()
     })
   })
+
+  it("requires authentication before opening product screens", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("null", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    )
+    renderApp("/app/explore")
+
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back" }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument()
+  })
 })

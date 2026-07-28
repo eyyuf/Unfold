@@ -585,7 +585,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em' }}>Purpose</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => setScreen('library')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
+          <button onClick={() => setScreen('login')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
           <Btn variant="ghost" size="sm" onClick={() => setScreen('login')}>Log in</Btn>
           <Btn variant="primary" size="sm" onClick={() => setScreen('register')}>Start free</Btn>
         </nav>
@@ -608,7 +608,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Btn variant="primary" size="lg" onClick={() => setScreen('register')}>
               Start your first experiment <ArrowRight size={16} />
             </Btn>
-            <Btn variant="ghost" size="lg" onClick={() => setScreen('library')}>
+            <Btn variant="ghost" size="lg" onClick={() => setScreen('login')}>
               Browse experiments
             </Btn>
           </div>
@@ -673,13 +673,13 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 40px 60px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>Popular experiments</h2>
-          <button onClick={() => setScreen('library')} style={{ background: 'none', border: 'none', color: C.acc, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', fontWeight: 600 }}>
+          <button onClick={() => setScreen('login')} style={{ background: 'none', border: 'none', color: C.acc, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'inherit', fontWeight: 600 }}>
             See all <ChevronRight size={15} />
           </button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
           {experiments.map(({ title, cat, color, duration, time, Icon }) => (
-            <Card key={title} onClick={() => setScreen('detail')} style={{ cursor: 'pointer' }}>
+            <Card key={title} onClick={() => setScreen('login')} style={{ cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={17} color={color} />
@@ -2152,7 +2152,7 @@ export default function App() {
     retry: false,
   })
 
-  const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'commit', 'saved', 'report', 'insights', 'vault', 'profile', 'help']
+  const authenticatedScreens: Screen[] = ['onboarding', 'home', 'library', 'detail', 'commit', 'saved', 'checkin', 'checkin-done', 'reflection', 'report', 'insights', 'vault', 'profile', 'help']
   const isAuthenticated = authenticatedScreens.includes(screen)
 
   const renderScreen = () => {
@@ -2164,17 +2164,16 @@ export default function App() {
       case 'reset-password': return <ResetPasswordScreen setScreen={setScreen} />
       case 'privacy':    return <LegalScreen kind="privacy" setScreen={setScreen} />
       case 'terms':      return <LegalScreen kind="terms" setScreen={setScreen} />
-      case 'onboarding': return <OnboardingScreen setScreen={setScreen} />
-      case 'checkin':    return <CheckinScreen setScreen={setScreen} />
-      case 'checkin-done': return <CheckinDoneScreen setScreen={setScreen} />
-      case 'reflection': return <FinalReflectionScreen setScreen={setScreen} />
       default: break
     }
 
     if (isAuthenticated) {
-      const publicBrowse = screen === 'library' || screen === 'detail' || screen === 'help'
-      if (authLoading && !publicBrowse) return <div style={{ padding: 40, color: C.t3 }}>Restoring your session…</div>
-      if (!user && !publicBrowse) return <AuthScreen mode="login" setScreen={setScreen} />
+      if (authLoading) return <LoadingBlock label="Restoring your session…" />
+      if (!user) return <AuthScreen mode="login" setScreen={setScreen} />
+      if (screen === 'onboarding') return <OnboardingScreen setScreen={setScreen} />
+      if (screen === 'checkin') return <CheckinScreen setScreen={setScreen} />
+      if (screen === 'checkin-done') return <CheckinDoneScreen setScreen={setScreen} />
+      if (screen === 'reflection') return <FinalReflectionScreen setScreen={setScreen} />
       const content = (() => {
         switch (screen) {
           case 'home':     return <HomeScreen setScreen={setScreen} />
