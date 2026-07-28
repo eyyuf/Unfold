@@ -134,6 +134,30 @@ function Btn({
   )
 }
 
+function LoadingBlock({ label }: { label: string }) {
+  return <div role="status" aria-live="polite" style={{ maxWidth: 680, margin: '60px auto', padding: 24 }}>
+    <div className="skeleton" style={{ width: '42%', height: 24, borderRadius: 8, marginBottom: 14 }} />
+    <div className="skeleton" style={{ width: '100%', height: 120, borderRadius: 14, marginBottom: 12 }} />
+    <span style={{ color: C.t3, fontSize: 14 }}>{label}</span>
+  </div>
+}
+
+function ErrorBlock({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="alert" style={{ maxWidth: 560, margin: '70px auto', padding: 24, textAlign: 'center' }}>
+    <h2 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h2>
+    <p style={{ color: C.t3, marginBottom: 18 }}>{message} Your data was not deleted.</p>
+    <Btn onClick={onRetry}>Try again</Btn>
+  </div>
+}
+
+function EmptyState({ title, copy, action, onAction }: { title: string; copy: string; action: string; onAction: () => void }) {
+  return <div style={{ maxWidth: 580, margin: '70px auto', padding: 24, textAlign: 'center' }}>
+    <h1 style={{ fontSize: 24, marginBottom: 8 }}>{title}</h1>
+    <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 20 }}>{copy}</p>
+    <Btn onClick={onAction}>{action}</Btn>
+  </div>
+}
+
 function Card({ children, style, onClick, accent = false }: {
   children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void; accent?: boolean
 }) {
@@ -660,7 +684,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
                 <div style={{ width: 38, height: 38, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={17} color={color} />
                 </div>
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4, padding: 0 }}><Bookmark size={15} /></button>
+                <span aria-hidden="true" style={{ color: C.t4 }}><Bookmark size={15} /></span>
               </div>
               <Badge label={cat} color={color} />
               <h3 style={{ fontSize: 15, fontWeight: 700, margin: '10px 0 8px', lineHeight: 1.35 }}>{title}</h3>
@@ -829,7 +853,7 @@ function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // ─── SCREEN: Home ─────────────────────────────────────────────────────────────
 function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const { data: active, isPending, isFetching, isError } = useActiveExperiment()
+  const { data: active, isPending, isFetching, isError, refetch } = useActiveExperiment()
   const queryClient = useQueryClient()
   const user = queryClient.getQueryData<UserData>(['me'])
   const abandon = useMutation({
@@ -843,15 +867,9 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       setScreen('vault')
     },
   })
-  if (isPending) return <div style={{ padding: 40, color: C.t3 }}>Loading your experiment…</div>
-  if (isError) return <div style={{ padding: 40, color: C.red }}>Your experiment could not be loaded. Please try again.</div>
-  if (!active) return (
-    <div style={{ maxWidth: 680, margin: '80px auto', padding: 24, textAlign: 'center' }}>
-      <h1>No active experiment yet</h1>
-      <p style={{ color: C.t3, marginBottom: 24 }}>Choose a short experiment to begin collecting evidence.</p>
-      <Btn onClick={() => setScreen('library')}>Explore experiments</Btn>
-    </div>
-  )
+  if (isPending) return <LoadingBlock label="Loading your experiment…" />
+  if (isError) return <ErrorBlock message="Your experiment could not be loaded." onRetry={() => refetch()} />
+  if (!active) return <EmptyState title="Your next discovery starts with one small experiment" copy="Choose a short experiment to begin collecting evidence." action="Explore experiments" onAction={() => setScreen('library')} />
   const day = active.current_day
   const task = active.experiment.daily_tasks.find((item) => item.day === day)
   return (
@@ -864,7 +882,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <p style={{ color: C.t3, fontSize: 14 }}>One experiment at a time.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button style={{ width: 38, height: 38, borderRadius: 9, background: C.s1, border: `1px solid ${C.br}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
+          <button aria-label="Open reminder settings" onClick={() => setScreen('profile')} style={{ width: 38, height: 38, borderRadius: 9, background: C.s1, border: `1px solid ${C.br}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}>
             <Bell size={16} color={C.t3} />
             <div style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: '50%', background: C.acc }} />
           </button>
@@ -884,7 +902,9 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <Badge label={active.experiment.category} color={C.purple} />
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
+          <button aria-label="End experiment early" onClick={() => {
+            if (window.confirm('End this experiment early? Your existing check-ins will remain in your Evidence Vault.')) abandon.mutate()
+          }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
         </div>
 
         <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{active.experiment.title}</h2>
@@ -916,7 +936,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 6 }}>{task?.instructions ?? 'Complete today’s experiment task.'}</p>
           <div style={{ display: 'flex', gap: 12, fontSize: 13, color: C.t4 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {active.experiment.minutes_per_day} minutes</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Bell size={12} /> Reminder at 7:30 PM</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Bell size={12} /> Reminder at {user?.reminder_time?.slice(0, 5) ?? '19:30'}</span>
           </div>
         </div>
 
@@ -990,7 +1010,7 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     { label: 'Physical', color: C.amber, Icon: Dumbbell },
   ]
 
-  const { data = [], isLoading, error } = useQuery({
+  const { data = [], isLoading, error, refetch } = useQuery({
     queryKey: ['experiments', activeFilter, search],
     queryFn: () => apiRequest<ExperimentData[]>(`/experiments/?${new URLSearchParams({
       ...(activeFilter !== 'All' ? { category: activeFilter.toLowerCase() } : {}),
@@ -1027,6 +1047,8 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   })).sort((a, b) => Number(interests.includes(b.category)) - Number(interests.includes(a.category)))
     .map((item, index) => ({ ...item, badge: index === 0 ? (interests.includes(item.category) ? 'Matches your interests' : 'Good first experiment') : undefined }))
   const openExperiment = (slug: string) => navigate(`/app/experiments/${slug}`)
+  if (isLoading) return <LoadingBlock label="Loading experiments…" />
+  if (error) return <ErrorBlock message="The experiment library could not be loaded." onRetry={() => refetch()} />
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1049,9 +1071,6 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           boxSizing: 'border-box',
         }} />
       </div>
-      {isLoading && <p style={{ color: C.t3 }}>Loading experiments…</p>}
-      {error && <p role="alert" style={{ color: C.red }}>We could not load experiments. Please try again.</p>}
-
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32 }}>
         {filters.map(({ label, color, Icon }) => (
@@ -1172,7 +1191,7 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = queryClient.getQueryData<UserData>(['me'])
-  const { data: experiment, isLoading, error } = useQuery({
+  const { data: experiment, isLoading, error, refetch } = useQuery({
     queryKey: ['experiment', slug],
     queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
   })
@@ -1186,8 +1205,8 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     mutationFn: () => apiRequest(`/experiments/${slug}/save/`, { method: isSaved ? 'DELETE' : 'POST' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
   })
-  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Loading experiment…</div>
-  if (error || !experiment) return <div style={{ padding: 40, color: C.red }}>This experiment could not be loaded.</div>
+  if (isLoading) return <LoadingBlock label="Loading experiment…" />
+  if (error || !experiment) return <ErrorBlock message="This experiment could not be loaded." onRetry={() => refetch()} />
   const tasks = experiment.daily_tasks.slice(0, 3).map((task) => task.instructions)
 
   return (
@@ -1344,8 +1363,27 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [notes, setNotes] = useState('')
+  const [draftLoaded, setDraftLoaded] = useState(false)
   const { data: active } = useActiveExperiment()
   const queryClient = useQueryClient()
+  const draftKey = active ? `unfold-checkin-draft-${active.id}-${active.current_day}` : ''
+  useEffect(() => {
+    if (!draftKey) return
+    try {
+      const draft = JSON.parse(localStorage.getItem(draftKey) ?? 'null')
+      if (draft) {
+        setAnswers(draft.answers ?? {})
+        setNotes(draft.notes ?? '')
+        setStep(Math.min(Number(draft.step) || 0, 6))
+      }
+    } finally {
+      setDraftLoaded(true)
+    }
+  }, [draftKey])
+  useEffect(() => {
+    if (!draftKey || !draftLoaded) return
+    localStorage.setItem(draftKey, JSON.stringify({ answers, notes, step }))
+  }, [answers, draftKey, draftLoaded, notes, step])
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('Start an experiment before checking in.')
@@ -1358,6 +1396,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       })
     },
     onSuccess: async () => {
+      if (draftKey) localStorage.removeItem(draftKey)
       await queryClient.invalidateQueries({ queryKey: ['active-experiment'] })
       setScreen('checkin-done')
     },
@@ -1385,7 +1424,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', flexDirection: 'column' }}>
       {/* Fixed header */}
       <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.br}`, background: C.bg2, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <button onClick={() => setScreen('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><X size={20} /></button>
+        <button aria-label="Close check-in" onClick={() => setScreen('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><X size={20} /></button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: C.t4 }}>{active?.experiment.title ?? 'Active experiment'} — Day {active?.current_day ?? 1}</span>
@@ -1564,7 +1603,7 @@ function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }
 function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const location = useLocation()
   const reportId = location.pathname.startsWith('/app/reports/') ? location.pathname.split('/').pop() : undefined
-  const { data: report, isLoading, error } = useQuery({
+  const { data: report, isLoading, error, refetch } = useQuery({
     queryKey: ['experiment-report', reportId ?? 'latest'],
     queryFn: async () => {
       if (reportId) return apiRequest<ExperimentReport>(`/user-experiments/${reportId}/report/`)
@@ -1572,8 +1611,8 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       return reports[0] ?? null
     },
   })
-  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Building your report…</div>
-  if (error) return <div role="alert" style={{ padding: 40, color: C.red }}>This report could not be loaded. Please try again.</div>
+  if (isLoading) return <LoadingBlock label="Building your report…" />
+  if (error) return <ErrorBlock message="This report could not be loaded." onRetry={() => refetch()} />
   if (!report) return <div style={{ padding: 40, color: C.t3 }}>Complete an experiment to see your first report.</div>
   const dims = Object.entries(report.dimensions).map(([l, v]) => ({ l, v }))
 
@@ -1663,13 +1702,25 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 }
 
 // ─── SCREEN: Insights ──────────────────────────────────────────────────────
-function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
-  const { data } = useQuery({
+function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const navigate = useNavigate()
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['insights'],
-    queryFn: () => apiRequest<{ completed_count: number; average_fit: number; patterns: string[]; categories: { label: string; value: number; count: number }[] }>('/insights/'),
+    queryFn: () => apiRequest<{
+      completed_count: number; average_fit: number; average_curiosity: number; average_repeat_intent: number; average_consistency: number
+      patterns: string[]; categories: { label: string; value: number; count: number }[]
+      evidence_map: { id: number; label: string; category: string; fit_signal: number; strongest_signal: string }[]
+    }>('/insights/'),
   })
+  if (isLoading) return <LoadingBlock label="Finding patterns in your evidence…" />
+  if (error) return <ErrorBlock message="Your insights could not be loaded." onRetry={() => refetch()} />
+  if (!data?.completed_count) return <EmptyState title="Patterns need more than one clue" copy="Complete your first experiment to begin seeing personal patterns." action="Explore experiments" onAction={() => setScreen('library')} />
   const patterns = (data?.patterns ?? []).map((text, index) => ({ text, color: [C.purple, C.blue, C.acc][index % 3], Icon: [Star, Brain, TrendingUp][index % 3] }))
-  const categories = (data?.categories ?? []).map((item) => ({ label: item.label, v: item.value, n: item.count, color: C.purple }))
+  const categoryColors: Record<string, string> = { Creative: C.purple, Technical: C.blue, Social: C.orange, Nature: C.acc, Service: C.teal, Business: C.indigo, Physical: C.amber }
+  const categories = data.categories.map((item) => ({ label: item.label, v: item.value, n: item.count, color: categoryColors[item.label] ?? C.acc }))
+  const nodePositions = [
+    ['10%', '20%'], ['38%', '8%'], ['68%', '24%'], ['22%', '58%'], ['52%', '62%'], ['78%', '55%'],
+  ]
 
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1683,17 +1734,13 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em', marginBottom: 16 }}>EVIDENCE MAP</div>
         <div style={{ position: 'relative', height: 260 }}>
           <Constellation w={720} h={260} />
-          {/* Labels */}
-          {[
-            { x: '13%', y: '30%', label: 'Photography', color: C.purple },
-            { x: '32%', y: '12%', label: 'Writing', color: C.purple },
-            { x: '56%', y: '22%', label: 'Coding', color: C.blue },
-            { x: '46%', y: '52%', label: 'Teaching', color: C.teal },
-          ].map(({ x, y, label, color }) => (
-            <div key={label} style={{ position: 'absolute', left: x, top: y, fontSize: 11, fontWeight: 700, color, background: `${color}14`, padding: '3px 8px', borderRadius: 6, border: `1px solid ${color}25`, whiteSpace: 'nowrap' }}>
-              {label}
-            </div>
-          ))}
+          {data.evidence_map.map((node, index) => {
+            const [x, y] = nodePositions[index % nodePositions.length]
+            const color = categoryColors[node.category] ?? C.acc
+            return <button key={node.id} onClick={() => navigate(`/app/reports/${node.id}`)} aria-label={`${node.label}: ${node.fit_signal}% fit, strongest signal ${node.strongest_signal}`} style={{ position: 'absolute', left: x, top: y, fontSize: 11, fontWeight: 700, color, background: `${color}14`, padding: '5px 9px', borderRadius: 6, border: `1px solid ${color}25`, whiteSpace: 'nowrap' }}>
+              {node.label} · {node.fit_signal}%
+            </button>
+          })}
         </div>
         <p style={{ fontSize: 13, color: C.t4, marginTop: 8 }}>Each node represents a completed experiment. Connected nodes share strong signals.</p>
       </Card>
@@ -1712,6 +1759,7 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
               </div>
             </Card>
           ))}
+          {!patterns.length && <p style={{ color: C.t4 }}>Complete more experiments to reveal repeated signals.</p>}
         </div>
       </div>
 
@@ -1738,9 +1786,9 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
         {[
           { label: 'Avg fit signal', value: `${data?.average_fit ?? 0}%`, sub: `across ${data?.completed_count ?? 0} experiments`, color: C.acc },
-          { label: 'Curiosity rate', value: '4.3/5', sub: 'avg across all check-ins', color: C.blue },
-          { label: 'Repeat intent', value: '83%', sub: 'of days you wanted to continue', color: C.purple },
-          { label: 'Consistency', value: '78%', sub: 'tasks completed on schedule', color: C.amber },
+          { label: 'Curiosity rate', value: `${data.average_curiosity}/5`, sub: 'avg across all check-ins', color: C.blue },
+          { label: 'Repeat intent', value: `${data.average_repeat_intent}%`, sub: 'from final reflections', color: C.purple },
+          { label: 'Consistency', value: `${data.average_consistency}%`, sub: 'planned days with check-ins', color: C.amber },
         ].map(({ label, value, sub, color }) => (
           <Card key={label} style={{ padding: '18px 20px' }}>
             <div style={{ fontSize: 26, fontWeight: 800, color, marginBottom: 4 }}>{value}</div>
@@ -1756,10 +1804,24 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
 // ─── SCREEN: Evidence Vault ───────────────────────────────────────────────────
 function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
-  const { data: entries = [] } = useQuery({
+  const { data: entries = [], isLoading, error, refetch } = useQuery({
     queryKey: ['evidence-vault'],
     queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
   })
+  const exportVault = useMutation({
+    mutationFn: () => apiRequest<Record<string, unknown>>('/auth/export/'),
+    onSuccess: (data) => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `unfold-evidence-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    },
+  })
+  if (isLoading) return <LoadingBlock label="Opening your Evidence Vault…" />
+  if (error) return <ErrorBlock message="Your Evidence Vault could not be loaded." onRetry={() => refetch()} />
+  if (!entries.length) return <EmptyState title="Your Evidence Vault is empty" copy="Complete an experiment to add your first entry." action="Explore experiments" onAction={() => navigate('/app/explore')} />
   const averageFit = entries.length ? Math.round(entries.reduce((sum, entry) => sum + entry.fit_signal, 0) / entries.length) : 0
 
   return (
@@ -1769,8 +1831,8 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
           <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Evidence Vault</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Your personal archive of completed experiments.</p>
         </div>
-        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit' }}>
-          <Download size={14} /> Export
+        <button disabled={exportVault.isPending} onClick={() => exportVault.mutate()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit' }}>
+          <Download size={14} /> {exportVault.isPending ? 'Preparing…' : 'Export'}
         </button>
       </div>
 
@@ -2052,6 +2114,7 @@ function HelpScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   useEffect(() => {
     const preference = (localStorage.getItem('unfold-theme') as ThemePreference | null) ?? 'dark'
     applyThemePreference(preference)
@@ -2061,6 +2124,15 @@ export default function App() {
     }
     media.addEventListener('change', handleSystemTheme)
     return () => media.removeEventListener('change', handleSystemTheme)
+  }, [])
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(navigator.onLine)
+    window.addEventListener('online', updateConnection)
+    window.addEventListener('offline', updateConnection)
+    return () => {
+      window.removeEventListener('online', updateConnection)
+      window.removeEventListener('offline', updateConnection)
+    }
   }, [])
   const paths: Record<Screen, string> = {
     landing: '/', login: '/login', register: '/register', 'forgot-password': '/forgot-password', 'reset-password': '/reset-password',
@@ -2124,6 +2196,9 @@ export default function App() {
   }
 
   return (
-    <div>{renderScreen()}</div>
+    <div>
+      {!isOnline && <div role="status" style={{ position: 'fixed', zIndex: 100, top: 0, left: 0, right: 0, padding: '9px 16px', textAlign: 'center', background: C.amber, color: '#271500', fontSize: 13, fontWeight: 700 }}>You appear to be offline. Check-in progress is kept on this device.</div>}
+      {renderScreen()}
+    </div>
   )
 }

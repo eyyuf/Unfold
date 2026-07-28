@@ -297,9 +297,27 @@ def insights_view(request):
     for report in reports:
         category = report["experiment"]["category"]
         categories.setdefault(category, []).append(report["fit_signal"])
+    checkins = list(CheckIn.objects.filter(user_experiment__in=items))
+    reflections = list(FinalReflection.objects.filter(user_experiment__in=items))
+    average_curiosity = round(sum(row.curiosity for row in checkins) / len(checkins), 1) if checkins else 0
+    average_repeat_intent = round(sum(row.repeat_intent for row in reflections) / len(reflections) * 20) if reflections else 0
+    average_consistency = round(sum(report["dimensions"]["Consistency"] for report in reports) / len(reports)) if reports else 0
     return Response({
         "completed_count": len(reports),
         "average_fit": round(sum(r["fit_signal"] for r in reports) / len(reports)) if reports else 0,
+        "average_curiosity": average_curiosity,
+        "average_repeat_intent": average_repeat_intent,
+        "average_consistency": average_consistency,
         "categories": [{"label": name, "value": round(sum(values) / len(values)), "count": len(values)} for name, values in categories.items()],
         "patterns": [f"{report['strongest_signal']} is your strongest signal in {report['experiment']['title']}" for report in reports[:3]],
+        "evidence_map": [
+            {
+                "id": report["id"],
+                "label": report["experiment"]["title"],
+                "category": report["experiment"]["category"],
+                "fit_signal": report["fit_signal"],
+                "strongest_signal": report["strongest_signal"],
+            }
+            for report in reports
+        ],
     })
