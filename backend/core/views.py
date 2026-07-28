@@ -18,6 +18,13 @@ from checkins.models import CheckIn, FinalReflection
 from experiments.models import Experiment, SavedExperiment, UserExperiment
 from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, PasswordResetConfirmSerializer, RegistrationSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
 
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def health_view(request):
+    return Response({"status": "ok"})
+
+
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 @ensure_csrf_cookie

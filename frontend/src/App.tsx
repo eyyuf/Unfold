@@ -726,7 +726,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${C.br}`, padding: '28px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: C.t4 }}>© 2025 Purpose Discovery</span>
+        <span style={{ fontSize: 13, color: C.t4 }}>© {new Date().getFullYear()} Unfold</span>
         <div style={{ display: 'flex', gap: 20 }}>
           {[
             { label: 'Privacy', screen: 'privacy' as Screen },

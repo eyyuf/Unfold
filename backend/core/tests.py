@@ -15,6 +15,9 @@ class ApiFlowTests(TestCase):
         )
 
     def test_public_experiment_library(self):
+        health = self.client.get("/api/v1/health/")
+        self.assertEqual(health.status_code, 200)
+        self.assertEqual(health.data["status"], "ok")
         response = self.client.get("/api/v1/experiments/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["slug"], "photography-walk")
