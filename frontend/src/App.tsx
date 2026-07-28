@@ -54,6 +54,18 @@ type ExperimentReport = {
   id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
   fit_signal: number; strongest_signal: string; dimensions: Record<string, number>; summary: string
 }
+
+function useActiveExperiment() {
+  return useQuery({
+    queryKey: ['active-experiment'],
+    queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/'),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+  })
+}
 const authSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -647,12 +659,10 @@ function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // ─── SCREEN: Home ─────────────────────────────────────────────────────────────
 function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const { data: active, isLoading } = useQuery({
-    queryKey: ['active-experiment'],
-    queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/'),
-  })
+  const { data: active, isPending, isFetching, isError } = useActiveExperiment()
   const user = useQueryClient().getQueryData<UserData>(['me'])
-  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Loading your experiment…</div>
+  if (isPending) return <div style={{ padding: 40, color: C.t3 }}>Loading your experiment…</div>
+  if (isError) return <div style={{ padding: 40, color: C.red }}>Your experiment could not be loaded. Please try again.</div>
   if (!active) return (
     <div style={{ maxWidth: 680, margin: '80px auto', padding: 24, textAlign: 'center' }}>
       <h1>No active experiment yet</h1>
@@ -679,6 +689,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <div style={{ width: 38, height: 38, borderRadius: 9, background: `${C.purple}22`, border: `1px solid ${C.purple}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: C.purple }}>E</div>
         </div>
       </div>
+      {isFetching && <div style={{ color: C.t4, fontSize: 12, marginBottom: 10 }}>Syncing…</div>}
 
       {/* Active experiment card */}
       <div style={{
@@ -1004,10 +1015,8 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [notes, setNotes] = useState('')
-  const { data: active } = useQuery({
-    queryKey: ['active-experiment'],
-    queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/'),
-  })
+  const { data: active } = useActiveExperiment()
+  const queryClient = useQueryClient()
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('Start an experiment before checking in.')
@@ -1019,7 +1028,10 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         }),
       })
     },
-    onSuccess: () => setScreen('checkin-done'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['active-experiment'] })
+      setScreen('checkin-done')
+    },
   })
 
   const questions = [
@@ -1183,7 +1195,7 @@ function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }
   const [repeatIntent, setRepeatIntent] = useState(4)
   const [summary, setSummary] = useState('')
   const queryClient = useQueryClient()
-  const { data: active } = useQuery({ queryKey: ['active-experiment'], queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/') })
+  const { data: active } = useActiveExperiment()
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('No active experiment found.')
