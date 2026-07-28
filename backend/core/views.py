@@ -1,4 +1,5 @@
 from django.contrib.auth import login, logout
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -59,7 +60,7 @@ def logout_view(request):
 def me_view(request):
     if not request.user.is_authenticated:
         if request.method == "GET":
-            return Response(None)
+            return JsonResponse(None, safe=False)
         return Response(
             {"detail": "Authentication credentials were not provided."},
             status=status.HTTP_403_FORBIDDEN,
@@ -74,6 +75,12 @@ def me_view(request):
 @api_view(["POST"])
 def start_experiment(request, slug):
     experiment = get_object_or_404(Experiment, slug=slug, published=True)
+    existing = UserExperiment.objects.filter(user=request.user, status="active").select_related("experiment__category").first()
+    if existing and existing.experiment_id != experiment.id:
+        return Response(
+            {"detail": f"Finish {existing.experiment.title} before starting another experiment."},
+            status=status.HTTP_409_CONFLICT,
+        )
     active, created = UserExperiment.objects.get_or_create(
         user=request.user, experiment=experiment, status="active",
         defaults={"start_date": request.data.get("start_date", timezone.localdate()), "reason": request.data.get("reason", "")})
@@ -81,14 +88,18 @@ def start_experiment(request, slug):
 
 @api_view(["GET"])
 def active_experiment(request):
-    item = UserExperiment.objects.filter(user=request.user, status="active").select_related("experiment__category").first()
-    return Response(UserExperimentSerializer(item).data if item else None)
+    item = UserExperiment.objects.filter(user=request.user, status="active").select_related("experiment__category").prefetch_related("checkins", "experiment__daily_tasks").first()
+    if not item:
+        return JsonResponse(None, safe=False)
+    return Response(UserExperimentSerializer(item).data)
 
 @api_view(["POST"])
 def submit_checkin(request, pk):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
     serializer = CheckInSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    if serializer.validated_data["day"] > item.experiment.duration_days:
+        return Response({"detail": "This day is outside the experiment plan."}, status=status.HTTP_400_BAD_REQUEST)
     checkin, _ = CheckIn.objects.update_or_create(user_experiment=item, day=serializer.validated_data["day"], defaults=serializer.validated_data)
     return Response(CheckInSerializer(checkin).data)
 

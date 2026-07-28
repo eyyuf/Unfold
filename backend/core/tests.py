@@ -22,7 +22,7 @@ class ApiFlowTests(TestCase):
     def test_user_endpoints_reject_anonymous_requests_without_server_errors(self):
         session_response = self.client.get("/api/v1/auth/me/")
         self.assertEqual(session_response.status_code, 200)
-        self.assertIsNone(session_response.data)
+        self.assertIsNone(session_response.json())
         for path in (
             "/api/v1/user-experiments/active/",
             "/api/v1/evidence-vault/",
@@ -31,6 +31,14 @@ class ApiFlowTests(TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertIn(response.status_code, (401, 403))
+
+    def test_authenticated_user_without_active_experiment_receives_json_null(self):
+        user = User.objects.create_user("empty@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/v1/user-experiments/active/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json())
+        self.assertEqual(response.headers["Content-Type"], "application/json")
 
     def test_authenticated_user_can_start_experiment_and_check_in(self):
         user = User.objects.create_user("person@example.com", "a-secure-password")
@@ -44,6 +52,10 @@ class ApiFlowTests(TestCase):
         )
         self.assertEqual(checkin.status_code, 200)
         self.assertEqual(checkin.data["curiosity"], 5)
+        active = self.client.get("/api/v1/user-experiments/active/")
+        self.assertEqual(active.data["checkin_count"], 1)
+        self.assertEqual(active.data["current_day"], 2)
+        self.assertEqual(active.data["recent_checkins"][0]["curiosity"], 5)
 
     def test_registration_creates_session_and_csrf_cookie(self):
         self.client.get("/api/v1/auth/csrf/")

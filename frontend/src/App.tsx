@@ -49,7 +49,11 @@ type ExperimentData = {
   duration_days: number; minutes_per_day: number
   daily_tasks: { day: number; title: string; instructions: string }[]
 }
-type ActiveExperiment = { id: number; start_date: string; experiment: ExperimentData }
+type ActiveExperiment = {
+  id: number; start_date: string; experiment: ExperimentData
+  checkin_count: number; current_day: number
+  recent_checkins: { day: number; notes: string; energy: number; curiosity: number; meaning: number }[]
+}
 type ExperimentReport = {
   id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
   fit_signal: number; strongest_signal: string; dimensions: Record<string, number>; summary: string
@@ -670,7 +674,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <Btn onClick={() => setScreen('library')}>Explore experiments</Btn>
     </div>
   )
-  const day = 1
+  const day = active.current_day
   const task = active.experiment.daily_tasks.find((item) => item.day === day)
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -748,30 +752,28 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ fontSize: 16, fontWeight: 700 }}>Recent evidence</h3>
-          <button style={{ background: 'none', border: 'none', color: C.acc, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>View all</button>
+          <button onClick={() => setScreen('vault')} style={{ background: 'none', border: 'none', color: C.acc, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>View all</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[
-            { day: 'Day 2', note: '"Noticed I kept taking more than ten photos."', signals: [{ l: 'Curiosity', v: 5 }, { l: 'Energy', v: 4 }] },
-            { day: 'Day 1', note: '"Felt self-conscious at first, then focused."', signals: [{ l: 'Enjoyment', v: 4 }, { l: 'Meaning', v: 3 }] },
-          ].map(({ day, note, signals }) => (
-            <Card key={day} style={{ padding: '14px 18px' }}>
+          {!active.recent_checkins.length && <p style={{ color: C.t4, fontSize: 14 }}>Your check-ins will appear here as you collect evidence.</p>}
+          {active.recent_checkins.map((checkin) => (
+            <Card key={checkin.day} style={{ padding: '14px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.t4 }}>{day}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.t4 }}>Day {checkin.day}</span>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {signals.map(({ l, v }) => (
+                  {[{ l: 'Curiosity', v: checkin.curiosity }, { l: 'Energy', v: checkin.energy }].map(({ l, v }) => (
                     <span key={l} style={{ fontSize: 12, color: C.t3 }}>{l}: <strong style={{ color: v >= 4 ? C.acc : C.t2 }}>{v}/5</strong></span>
                   ))}
                 </div>
               </div>
-              <p style={{ fontSize: 14, color: C.t2, fontStyle: 'italic' }}>{note}</p>
+              <p style={{ fontSize: 14, color: C.t2, fontStyle: 'italic' }}>{checkin.notes || 'No note added.'}</p>
             </Card>
           ))}
         </div>
       </div>
 
       {/* Pattern hint */}
-      <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }}>
+      {active.recent_checkins.length >= 2 && <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
           <div style={{ width: 36, height: 36, borderRadius: 9, background: `${C.purple}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <TrendingUp size={17} color={C.purple} />
@@ -781,7 +783,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.55 }}>Your curiosity scores have been consistently high. A pattern may be emerging around creative observation.</p>
           </div>
         </div>
-      </Card>
+      </Card>}
     </div>
   )
 }
@@ -1023,7 +1025,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       return apiRequest(`/user-experiments/${active.id}/checkins/`, {
         method: 'POST',
         body: JSON.stringify({
-          day: 1, energy: answers[2] ?? 3, curiosity: answers[3] ?? 3,
+          day: active.current_day, energy: answers[2] ?? 3, curiosity: answers[3] ?? 3,
           meaning: answers[4] ?? 3, difficulty: 6 - (answers[1] ?? 3), notes,
         }),
       })
@@ -1059,7 +1061,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         <button onClick={() => setScreen('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><X size={20} /></button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.t4 }}>{active?.experiment.title ?? 'Active experiment'} — Day 1</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.t4 }}>{active?.experiment.title ?? 'Active experiment'} — Day {active?.current_day ?? 1}</span>
             <span style={{ fontSize: 13, color: C.t4 }}>{step + 1}/{total}</span>
           </div>
           <div style={{ height: 4, background: C.s2, borderRadius: 2, overflow: 'hidden' }}>
@@ -1152,6 +1154,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // Check-in done state
 function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const { data: active } = useActiveExperiment()
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }} className="fade-up">
@@ -1164,7 +1167,7 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Check-in saved.</h1>
         <p style={{ fontSize: 16, color: C.t3, lineHeight: 1.6, marginBottom: 32 }}>
-          You have added another piece of evidence. Three check-ins collected.
+          You have added another piece of evidence. {active?.checkin_count ?? 1} check-in{active?.checkin_count === 1 ? '' : 's'} collected.
         </p>
 
         <Card style={{ textAlign: 'left', marginBottom: 24 }}>

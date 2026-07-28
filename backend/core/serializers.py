@@ -35,9 +35,27 @@ class ExperimentSerializer(serializers.ModelSerializer):
 
 class UserExperimentSerializer(serializers.ModelSerializer):
     experiment = ExperimentSerializer(read_only=True)
+    checkin_count = serializers.SerializerMethodField()
+    current_day = serializers.SerializerMethodField()
+    recent_checkins = serializers.SerializerMethodField()
     class Meta:
         model, fields = UserExperiment, "__all__"
         read_only_fields = ["user", "status"]
+    def get_checkin_count(self, obj):
+        return obj.checkins.count()
+    def get_current_day(self, obj):
+        return min(obj.checkins.count() + 1, obj.experiment.duration_days)
+    def get_recent_checkins(self, obj):
+        return [
+            {
+                "day": checkin.day,
+                "notes": checkin.notes,
+                "energy": checkin.energy,
+                "curiosity": checkin.curiosity,
+                "meaning": checkin.meaning,
+            }
+            for checkin in obj.checkins.all().order_by("-day")[:3]
+        ]
 
 class CheckInSerializer(serializers.ModelSerializer):
     energy = serializers.IntegerField(min_value=1, max_value=5)
