@@ -1,5 +1,6 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
+from unittest.mock import patch
 from accounts.models import User
 from experiments.models import Category, Experiment
 
@@ -188,6 +189,15 @@ class ApiFlowTests(TestCase):
         self.assertEqual(confirmed.status_code, 200)
         user.refresh_from_db()
         self.assertTrue(user.check_password("a-new-secure-password"))
+
+    @patch.dict("os.environ", {"RESEND_API_KEY": "test-key", "DEFAULT_FROM_EMAIL": "Unfold <verified@example.com>"})
+    @patch("core.views.logger.exception")
+    @patch("core.views.resend.Emails.send", side_effect=RuntimeError("provider rejected sender"))
+    def test_password_reset_email_failure_does_not_return_500(self, _send, _log):
+        user = User.objects.create_user("delivery@example.com", "a-secure-password")
+        response = self.client.post("/api/v1/auth/password-reset/", {"email": user.email}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("If an account exists", response.data["detail"])
 
     def test_privacy_controls_export_consent_and_delete_account(self):
         user = User.objects.create_user("privacy@example.com", "a-secure-password")

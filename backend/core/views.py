@@ -1,4 +1,5 @@
 import os
+import logging
 
 from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
@@ -17,6 +18,8 @@ from accounts.models import ConsentRecord, User
 from checkins.models import CheckIn, FinalReflection
 from experiments.models import Experiment, SavedExperiment, UserExperiment
 from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, PasswordResetConfirmSerializer, RegistrationSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
@@ -77,13 +80,16 @@ def password_reset_request(request):
         token = default_token_generator.make_token(user)
         reset_url = f"{os.environ.get('SITE_URL', 'http://localhost:5173')}/reset-password?uid={uid}&token={token}"
         if os.environ.get("RESEND_API_KEY"):
-            resend.api_key = os.environ["RESEND_API_KEY"]
-            resend.Emails.send({
-                "from": os.environ.get("DEFAULT_FROM_EMAIL", "Unfold <hello@example.com>"),
-                "to": [user.email],
-                "subject": "Reset your Unfold password",
-                "html": f"<p>Use the link below to reset your password.</p><p><a href=\"{reset_url}\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>",
-            })
+            try:
+                resend.api_key = os.environ["RESEND_API_KEY"]
+                resend.Emails.send({
+                    "from": os.environ.get("DEFAULT_FROM_EMAIL", "Unfold <onboarding@resend.dev>"),
+                    "to": [user.email],
+                    "subject": "Reset your Unfold password",
+                    "html": f"<p>Use the link below to reset your password.</p><p><a href=\"{reset_url}\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>",
+                })
+            except Exception:
+                logger.exception("Password reset email delivery failed")
         elif os.environ.get("DEBUG", "True").lower() == "true":
             response_data["reset_url"] = reset_url
     return Response(response_data)

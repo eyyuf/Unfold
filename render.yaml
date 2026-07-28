@@ -27,6 +27,8 @@ services:
         value: "https://unfold.onrender.com"
       - key: RESEND_API_KEY
         sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
       - key: SENTRY_DSN
         sync: false
   - type: cron
