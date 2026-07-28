@@ -1,14 +1,22 @@
+import os
+
 from django.contrib.auth import login, logout
+from django.contrib.auth.tokens import default_token_generator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 from django.views.decorators.csrf import ensure_csrf_cookie
+import resend
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from accounts.models import User
 from checkins.models import CheckIn, FinalReflection
 from experiments.models import Experiment, SavedExperiment, UserExperiment
-from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
+from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, PasswordResetConfirmSerializer, RegistrationSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
@@ -36,7 +44,7 @@ class ExperimentDetail(generics.RetrieveAPIView):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def register_view(request):
-    serializer = UserSerializer(data=request.data)
+    serializer = RegistrationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
     login(request, user)
@@ -49,6 +57,46 @@ def login_view(request):
     serializer.is_valid(raise_exception=True)
     login(request, serializer.validated_data["user"])
     return Response(UserSerializer(serializer.validated_data["user"]).data)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def password_reset_request(request):
+    email = str(request.data.get("email", "")).strip().lower()
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
+    response_data = {"detail": "If an account exists for that email, a reset link has been sent."}
+    if user:
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        reset_url = f"{os.environ.get('SITE_URL', 'http://localhost:5173')}/reset-password?uid={uid}&token={token}"
+        if os.environ.get("RESEND_API_KEY"):
+            resend.api_key = os.environ["RESEND_API_KEY"]
+            resend.Emails.send({
+                "from": os.environ.get("DEFAULT_FROM_EMAIL", "Unfold <hello@example.com>"),
+                "to": [user.email],
+                "subject": "Reset your Unfold password",
+                "html": f"<p>Use the link below to reset your password.</p><p><a href=\"{reset_url}\">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>",
+            })
+        elif os.environ.get("DEBUG", "True").lower() == "true":
+            response_data["reset_url"] = reset_url
+    return Response(response_data)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def password_reset_confirm(request):
+    serializer = PasswordResetConfirmSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        user_id = force_str(urlsafe_base64_decode(request.data.get("uid", "")))
+        user = User.objects.get(pk=user_id, is_active=True)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+    if not user or not default_token_generator.check_token(user, request.data.get("token", "")):
+        return Response({"detail": "This reset link is invalid or has expired."}, status=status.HTTP_400_BAD_REQUEST)
+    user.set_password(serializer.validated_data["password"])
+    user.save(update_fields=["password"])
+    return Response({"detail": "Password updated successfully."})
 
 @api_view(["POST"])
 def logout_view(request):

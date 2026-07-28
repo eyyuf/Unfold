@@ -1,6 +1,8 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from rest_framework import serializers
-from accounts.models import User
+from accounts.models import ConsentRecord, User
 from checkins.models import CheckIn, FinalReflection
 from experiments.models import DailyTask, Experiment, SavedExperiment, UserExperiment
 
@@ -8,11 +10,55 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=False)
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "timezone", "reminder_time", "reminders_enabled", "password"]
+        fields = ["id", "email", "display_name", "timezone", "reminder_time", "reminders_enabled", "onboarding_answers", "analytics_consent", "password"]
     def create(self, data): return User.objects.create_user(**data)
     def update(self, instance, data):
         data.pop("password", None)
         return super().update(instance, data)
+
+
+class RegistrationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
+    accept_terms = serializers.BooleanField()
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        if data["password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        if not data["accept_terms"]:
+            raise serializers.ValidationError({"accept_terms": "You must accept the Terms and Privacy Policy."})
+        return data
+
+    def create(self, validated_data):
+        validated_data.pop("confirm_password")
+        validated_data.pop("accept_terms")
+        user = User.objects.create_user(**validated_data, terms_accepted_at=timezone.now())
+        ConsentRecord.objects.create(user=user, kind=ConsentRecord.Kind.TERMS, granted=True)
+        return user
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        if data["password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()

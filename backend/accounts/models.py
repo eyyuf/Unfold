@@ -21,6 +21,24 @@ class User(AbstractUser):
     timezone = models.CharField(max_length=64, default="Africa/Nairobi")
     reminder_time = models.TimeField(null=True, blank=True)
     reminders_enabled = models.BooleanField(default=False)
+    onboarding_answers = models.JSONField(default=dict, blank=True)
+    analytics_consent = models.BooleanField(default=False)
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
     objects = UserManager()
+
+
+class ConsentRecord(models.Model):
+    class Kind(models.TextChoices):
+        TERMS = "terms", "Terms and privacy"
+        ANALYTICS = "analytics", "Optional analytics"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="consent_records")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    granted = models.BooleanField()
+    policy_version = models.CharField(max_length=20, default="2026-07")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

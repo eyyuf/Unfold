@@ -39,10 +39,12 @@ const C = {
   sky:     '#38BDF8',
 }
 
-type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
+type Screen = 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'privacy' | 'terms' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
 type UserData = {
   id: number; email: string; display_name: string; timezone?: string
   reminder_time?: string | null; reminders_enabled?: boolean
+  onboarding_answers?: { reason?: string; available_time?: string; interests?: string[] }
+  analytics_consent?: boolean
 }
 type ExperimentData = {
   id: number; category: string; title: string; slug: string; description: string
@@ -73,11 +75,23 @@ function useActiveExperiment() {
     retry: 1,
   })
 }
-const authSchema = z.object({
+type AuthFields = {
+  email: string; password: string; confirm_password?: string; accept_terms?: boolean
+}
+
+const authSchema = (mode: 'login' | 'register') => z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirm_password: z.string().optional(),
+  accept_terms: z.boolean().optional(),
+}).superRefine((data, context) => {
+  if (mode === 'register' && data.password !== data.confirm_password) {
+    context.addIssue({ code: 'custom', path: ['confirm_password'], message: 'Passwords do not match' })
+  }
+  if (mode === 'register' && !data.accept_terms) {
+    context.addIssue({ code: 'custom', path: ['accept_terms'], message: 'You must accept the Terms and Privacy Policy' })
+  }
 })
-type AuthFields = z.infer<typeof authSchema>
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
@@ -370,7 +384,7 @@ function AppShell({ screen, setScreen, children }: {
 // ─── SCREEN: Landing ─────────────────────────────────────────────────────────
 function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen: (s: Screen) => void }) {
   const queryClient = useQueryClient()
-  const { register, handleSubmit, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema) })
+  const { register, handleSubmit, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema(mode)) })
   const mutation = useMutation({
     mutationFn: (values: AuthFields) => apiRequest<UserData>(`/auth/${mode}/`, { method: 'POST', body: JSON.stringify(values) }),
     onSuccess: (user) => {
@@ -396,13 +410,116 @@ function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen
               {errors[field] && <span style={{ color: C.red, display: 'block', marginTop: 5, fontSize: 12 }}>{errors[field]?.message}</span>}
             </label>
           ))}
+          {mode === 'register' && <>
+            <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 18 }}>
+              <span style={{ display: 'block', marginBottom: 7 }}>Confirm password</span>
+              <input {...register('confirm_password')} type="password" autoComplete="new-password" style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${errors.confirm_password ? C.red : C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} />
+              {errors.confirm_password && <span role="alert" style={{ color: C.red, display: 'block', marginTop: 5, fontSize: 12 }}>{errors.confirm_password.message}</span>}
+            </label>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: C.t3, fontSize: 13, lineHeight: 1.5, marginBottom: 18 }}>
+              <input {...register('accept_terms')} type="checkbox" style={{ marginTop: 3 }} />
+              <span>I agree to the <button type="button" onClick={() => setScreen('terms')} style={{ border: 0, padding: 0, background: 'none', color: C.acc, cursor: 'pointer' }}>Terms</button> and <button type="button" onClick={() => setScreen('privacy')} style={{ border: 0, padding: 0, background: 'none', color: C.acc, cursor: 'pointer' }}>Privacy Policy</button>.</span>
+            </label>
+            {errors.accept_terms && <span role="alert" style={{ color: C.red, display: 'block', margin: '-12px 0 14px', fontSize: 12 }}>{errors.accept_terms.message}</span>}
+            <p style={{ color: C.t4, fontSize: 12, lineHeight: 1.5, marginTop: -8 }}>Use at least 8 characters. Avoid common or entirely numeric passwords.</p>
+          </>}
           {mutation.error && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{mutation.error.message}</p>}
           <Btn full size="lg" disabled={mutation.isPending}>{mutation.isPending ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}</Btn>
         </form>
+        {mode === 'login' && <button onClick={() => setScreen('forgot-password')} style={{ width: '100%', marginTop: 14, color: C.t3, background: 'none', border: 0, cursor: 'pointer' }}>Forgot password?</button>}
         <button onClick={() => setScreen(mode === 'login' ? 'register' : 'login')} style={{ width: '100%', marginTop: 18, color: C.acc, background: 'none', border: 0, cursor: 'pointer' }}>
           {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Log in'}
         </button>
       </Card>
+    </div>
+  )
+}
+
+function ForgotPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const [email, setEmail] = useState('')
+  const requestReset = useMutation({
+    mutationFn: () => apiRequest<{ detail: string; reset_url?: string }>('/auth/password-reset/', { method: 'POST', body: JSON.stringify({ email }) }),
+  })
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+        <button onClick={() => setScreen('login')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}><ChevronLeft size={16} /> Back to login</button>
+        <h1 style={{ fontSize: 28, marginBottom: 8 }}>Reset your password</h1>
+        <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 22 }}>Enter your email and we’ll send a secure reset link if an account exists.</p>
+        {!requestReset.isSuccess ? <>
+          <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 18 }}>
+            <span style={{ display: 'block', marginBottom: 7 }}>Email</span>
+            <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} />
+          </label>
+          {requestReset.error && <p role="alert" style={{ color: C.red }}>{requestReset.error.message}</p>}
+          <Btn full disabled={!email || requestReset.isPending} onClick={() => requestReset.mutate()}>{requestReset.isPending ? 'Sending…' : 'Send reset link'}</Btn>
+        </> : <div role="status">
+          <p style={{ color: C.acc, lineHeight: 1.6 }}>{requestReset.data.detail}</p>
+          {requestReset.data.reset_url && <a href={requestReset.data.reset_url} style={{ color: C.acc, fontSize: 14 }}>Open local development reset link</a>}
+        </div>}
+      </Card>
+    </div>
+  )
+}
+
+function ResetPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const reset = useMutation({
+    mutationFn: () => apiRequest<{ detail: string }>('/auth/password-reset/confirm/', {
+      method: 'POST',
+      body: JSON.stringify({ uid: params.get('uid'), token: params.get('token'), password, confirm_password: confirmPassword }),
+    }),
+  })
+  const mismatch = Boolean(confirmPassword && password !== confirmPassword)
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+        <h1 style={{ fontSize: 28, marginBottom: 8 }}>Choose a new password</h1>
+        <p style={{ color: C.t3, marginBottom: 22 }}>Use at least 8 characters and avoid common passwords.</p>
+        {!reset.isSuccess ? <>
+          <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 16 }}>New password<input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} style={{ width: '100%', marginTop: 7, background: C.s2, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} /></label>
+          <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 16 }}>Confirm password<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} style={{ width: '100%', marginTop: 7, background: C.s2, color: C.t1, border: `1px solid ${mismatch ? C.red : C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} /></label>
+          {mismatch && <p role="alert" style={{ color: C.red, fontSize: 13 }}>Passwords do not match.</p>}
+          {reset.error && <p role="alert" style={{ color: C.red }}>{reset.error.message}</p>}
+          <Btn full disabled={password.length < 8 || mismatch || reset.isPending || !params.get('uid') || !params.get('token')} onClick={() => reset.mutate()}>{reset.isPending ? 'Updating…' : 'Update password'}</Btn>
+        </> : <>
+          <p role="status" style={{ color: C.acc }}>{reset.data.detail}</p>
+          <Btn full onClick={() => setScreen('login')}>Continue to login</Btn>
+        </>}
+      </Card>
+    </div>
+  )
+}
+
+function LegalScreen({ kind, setScreen }: { kind: 'privacy' | 'terms'; setScreen: (s: Screen) => void }) {
+  const privacy = [
+    ['What we collect', 'Your account details, experiment choices, check-ins, reflections, reminder preferences, and consent choices.'],
+    ['How we use it', 'We use this information only to operate Unfold, calculate your rule-based personal signals, show your history, and send reminders you request.'],
+    ['Your control', 'Your reflections are private by default. You can export your information, review consent history, or delete your account from Settings.'],
+    ['Sharing and retention', 'Unfold has no public profiles or social feed. We do not sell personal data. Service providers may process data only to host, monitor, and deliver the service.'],
+  ]
+  const terms = [
+    ['The service', 'Unfold helps you collect structured evidence from short activities and personal reflections.'],
+    ['Not professional advice', 'Results are informational and are not medical, psychological, career, or other professional advice.'],
+    ['Your responsibilities', 'Keep your account secure, provide lawful content, and use the service without harming others or disrupting its operation.'],
+    ['Your data', 'You retain ownership of your reflections. You may export or delete your data through Settings.'],
+  ]
+  const sections = kind === 'privacy' ? privacy : terms
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, padding: '40px 24px' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <button onClick={() => setScreen('landing')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 28, display: 'flex', gap: 5 }}><ChevronLeft size={16} /> Back to Unfold</button>
+        <h1 style={{ fontSize: 34, marginBottom: 8 }}>{kind === 'privacy' ? 'Privacy Policy' : 'Terms of Use'}</h1>
+        <p style={{ color: C.t4, marginBottom: 28 }}>Effective July 28, 2026</p>
+        {sections.map(([title, copy]) => <Card key={title} style={{ marginBottom: 14 }}>
+          <h2 style={{ fontSize: 18, marginBottom: 8 }}>{title}</h2>
+          <p style={{ color: C.t3, lineHeight: 1.7, margin: 0 }}>{copy}</p>
+        </Card>)}
+        <p style={{ color: C.t4, fontSize: 13, lineHeight: 1.6, marginTop: 24 }}>This document is product-ready baseline copy and should receive legal review before a broad commercial launch.</p>
+      </div>
     </div>
   )
 }
@@ -577,7 +694,11 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <footer style={{ borderTop: `1px solid ${C.br}`, padding: '28px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 13, color: C.t4 }}>© 2025 Purpose Discovery</span>
         <div style={{ display: 'flex', gap: 20 }}>
-          {['Privacy', 'Terms', 'Help'].map(l => <a key={l} href="#" style={{ fontSize: 13, color: C.t4, textDecoration: 'none' }}>{l}</a>)}
+          {[
+            { label: 'Privacy', screen: 'privacy' as Screen },
+            { label: 'Terms', screen: 'terms' as Screen },
+            { label: 'Help', screen: 'help' as Screen },
+          ].map(({ label, screen }) => <button key={label} onClick={() => setScreen(screen)} style={{ fontSize: 13, color: C.t4, background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>{label}</button>)}
         </div>
       </footer>
     </div>
@@ -588,6 +709,23 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({})
+  const queryClient = useQueryClient()
+  const complete = useMutation({
+    mutationFn: () => apiRequest<UserData>('/auth/me/', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        onboarding_answers: {
+          reason: answers[0] ?? '',
+          available_time: answers[1] ?? '',
+          interests: answers[2] ?? [],
+        },
+      }),
+    }),
+    onSuccess: (user) => {
+      queryClient.setQueryData(['me'], user)
+      setScreen('library')
+    },
+  })
 
   const steps = [
     {
@@ -667,12 +805,13 @@ function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             {step > 0 && <><ChevronLeft size={15} /> Back</>}
           </button>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : setScreen('home')}>Skip</Btn>
-            <Btn variant="primary" onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : setScreen('home')}>
+            <Btn variant="ghost" disabled={complete.isPending} onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : complete.mutate()}>Skip</Btn>
+            <Btn variant="primary" disabled={complete.isPending} onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : complete.mutate()}>
               {step < steps.length - 1 ? 'Next' : 'See recommendations'} <ChevronRight size={15} />
             </Btn>
           </div>
         </div>
+        {complete.error && <p role="alert" style={{ color: C.red, marginTop: 16 }}>{complete.error.message}</p>}
       </div>
     </div>
   )
@@ -871,11 +1010,12 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     Social: { color: C.orange, Icon: Users }, Nature: { color: C.acc, Icon: Leaf },
     Service: { color: C.teal, Icon: Heart }, Physical: { color: C.amber, Icon: Dumbbell },
   }
-  const exps = data.map((item, index) => ({
+  const interests = user?.onboarding_answers?.interests ?? []
+  const exps = data.map((item) => ({
     ...item, cat: item.category, days: item.duration_days, mins: item.minutes_per_day,
     desc: item.description, ...(categoryStyle[item.category] ?? { color: C.acc, Icon: Compass }),
-    badge: index === 0 ? 'Good first experiment' : undefined,
-  }))
+  })).sort((a, b) => Number(interests.includes(b.category)) - Number(interests.includes(a.category)))
+    .map((item, index) => ({ ...item, badge: index === 0 ? (interests.includes(item.category) ? 'Matches your interests' : 'Good first experiment') : undefined }))
   const openExperiment = (slug: string) => navigate(`/app/experiments/${slug}`)
 
   return (
@@ -1845,7 +1985,8 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const paths: Record<Screen, string> = {
-    landing: '/', login: '/login', register: '/register', onboarding: '/onboarding', home: '/app', library: '/app/explore',
+    landing: '/', login: '/login', register: '/register', 'forgot-password': '/forgot-password', 'reset-password': '/reset-password',
+    privacy: '/privacy', terms: '/terms', onboarding: '/onboarding', home: '/app', library: '/app/explore',
     detail: '/app/experiments/photography-walk', commit: '/app/experiments/photography-walk/commit', saved: '/app/saved', checkin: '/app/check-in',
     'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
     insights: '/app/insights', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
@@ -1869,6 +2010,10 @@ export default function App() {
       case 'landing':    return <LandingScreen setScreen={setScreen} />
       case 'login':      return <AuthScreen mode="login" setScreen={setScreen} />
       case 'register':   return <AuthScreen mode="register" setScreen={setScreen} />
+      case 'forgot-password': return <ForgotPasswordScreen setScreen={setScreen} />
+      case 'reset-password': return <ResetPasswordScreen setScreen={setScreen} />
+      case 'privacy':    return <LegalScreen kind="privacy" setScreen={setScreen} />
+      case 'terms':      return <LegalScreen kind="terms" setScreen={setScreen} />
       case 'onboarding': return <OnboardingScreen setScreen={setScreen} />
       case 'checkin':    return <CheckinScreen setScreen={setScreen} />
       case 'checkin-done': return <CheckinDoneScreen setScreen={setScreen} />
@@ -1877,7 +2022,7 @@ export default function App() {
     }
 
     if (isAuthenticated) {
-      const publicBrowse = screen === 'library' || screen === 'detail'
+      const publicBrowse = screen === 'library' || screen === 'detail' || screen === 'help'
       if (authLoading && !publicBrowse) return <div style={{ padding: 40, color: C.t3 }}>Restoring your session…</div>
       if (!user && !publicBrowse) return <AuthScreen mode="login" setScreen={setScreen} />
       const content = (() => {

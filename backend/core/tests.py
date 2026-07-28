@@ -61,12 +61,18 @@ class ApiFlowTests(TestCase):
         self.client.get("/api/v1/auth/csrf/")
         response = self.client.post(
             "/api/v1/auth/register/",
-            {"email": "new@example.com", "password": "a-secure-password"},
+            {
+                "email": "new@example.com",
+                "password": "a-secure-password",
+                "confirm_password": "a-secure-password",
+                "accept_terms": True,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 201)
         self.assertTrue(User.objects.filter(email="new@example.com").exists())
         self.assertIn("_auth_user_id", self.client.session)
+        self.assertIsNotNone(User.objects.get(email="new@example.com").terms_accepted_at)
 
     def test_completion_report_insights_and_profile_update(self):
         user = User.objects.create_user("report@example.com", "a-secure-password")
@@ -144,5 +150,37 @@ class ApiFlowTests(TestCase):
         self.assertEqual(requested.status_code, 200)
         self.assertEqual(requested.data["id"], first.data["id"])
         self.assertEqual(requested.data["summary"], "First report")
+
+    def test_onboarding_answers_are_persisted(self):
+        user = User.objects.create_user("onboarding@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        response = self.client.patch(
+            "/api/v1/auth/me/",
+            {"onboarding_answers": {"reason": "Explore", "available_time": "20 minutes", "interests": ["Creative"]}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["onboarding_answers"]["interests"], ["Creative"])
+
+    def test_password_reset_token_changes_password(self):
+        user = User.objects.create_user("reset@example.com", "a-secure-password")
+        requested = self.client.post("/api/v1/auth/password-reset/", {"email": user.email}, format="json")
+        self.assertEqual(requested.status_code, 200)
+        self.assertIn("reset_url", requested.data)
+        from urllib.parse import parse_qs, urlparse
+        params = parse_qs(urlparse(requested.data["reset_url"]).query)
+        confirmed = self.client.post(
+            "/api/v1/auth/password-reset/confirm/",
+            {
+                "uid": params["uid"][0],
+                "token": params["token"][0],
+                "password": "a-new-secure-password",
+                "confirm_password": "a-new-secure-password",
+            },
+            format="json",
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("a-new-secure-password"))
 
 # Create your tests here.

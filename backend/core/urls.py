@@ -4,6 +4,8 @@ urlpatterns = [
     path("auth/csrf/", views.csrf_view),
     path("auth/register/", views.register_view), path("auth/login/", views.login_view),
     path("auth/logout/", views.logout_view), path("auth/me/", views.me_view),
+    path("auth/password-reset/", views.password_reset_request),
+    path("auth/password-reset/confirm/", views.password_reset_confirm),
     path("experiments/", views.ExperimentList.as_view()),
     path("experiments/<slug:slug>/", views.ExperimentDetail.as_view()),
     path("experiments/<slug:slug>/start/", views.start_experiment),
