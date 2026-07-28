@@ -54,8 +54,14 @@ def logout_view(request):
     logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
-@api_view(["GET"])
-def me_view(request): return Response(UserSerializer(request.user).data)
+@api_view(["GET", "PATCH"])
+def me_view(request):
+    if request.method == "PATCH":
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+    return Response(UserSerializer(request.user).data)
 
 @api_view(["POST"])
 def start_experiment(request, slug):
@@ -91,4 +97,49 @@ def final_reflection(request, pk):
 @api_view(["GET"])
 def evidence_vault(request):
     items = UserExperiment.objects.filter(user=request.user).exclude(status="active").select_related("experiment__category")
-    return Response(UserExperimentSerializer(items, many=True).data)
+    return Response([report_for(item) for item in items])
+
+
+def report_for(item):
+    checkins = list(item.checkins.all())
+    count = len(checkins)
+    average = lambda field: round(sum(getattr(row, field) for row in checkins) / count * 20) if count else 0
+    consistency = min(100, round(count / item.experiment.duration_days * 100))
+    repeat_intent = getattr(getattr(item, "final_reflection", None), "repeat_intent", 0) * 20
+    dimensions = {
+        "Energy": average("energy"), "Curiosity": average("curiosity"),
+        "Meaning": average("meaning"), "Ease": 100 - average("difficulty"),
+        "Consistency": consistency, "Desire to continue": repeat_intent,
+    }
+    populated = [value for value in dimensions.values() if value]
+    fit = round(sum(populated) / len(populated)) if populated else 0
+    strongest = max(dimensions, key=dimensions.get) if populated else "Not enough evidence"
+    return {
+        "id": item.id, "status": item.status, "start_date": item.start_date,
+        "experiment": ExperimentSerializer(item.experiment).data,
+        "checkin_count": count, "fit_signal": fit, "strongest_signal": strongest,
+        "dimensions": dimensions,
+        "summary": getattr(getattr(item, "final_reflection", None), "summary", ""),
+    }
+
+
+@api_view(["GET"])
+def experiment_report(request, pk):
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    return Response(report_for(item))
+
+
+@api_view(["GET"])
+def insights_view(request):
+    items = UserExperiment.objects.filter(user=request.user, status="completed").select_related("experiment__category").prefetch_related("checkins")
+    reports = [report_for(item) for item in items]
+    categories = {}
+    for report in reports:
+        category = report["experiment"]["category"]
+        categories.setdefault(category, []).append(report["fit_signal"])
+    return Response({
+        "completed_count": len(reports),
+        "average_fit": round(sum(r["fit_signal"] for r in reports) / len(reports)) if reports else 0,
+        "categories": [{"label": name, "value": round(sum(values) / len(values)), "count": len(values)} for name, values in categories.items()],
+        "patterns": [f"{report['strongest_signal']} is your strongest signal in {report['experiment']['title']}" for report in reports[:3]],
+    })

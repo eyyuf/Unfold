@@ -55,3 +55,14 @@ body {
 
 .fade-up { animation: fadeSlideUp 0.35s ease both; }
 .pulse-acc { animation: pulse-glow 2.5s ease-in-out infinite; }
+
+.desktop-sidebar { display: flex !important; }
+.mobile-nav { display: none !important; }
+
+@media (max-width: 767px) {
+  .desktop-sidebar { display: none !important; }
+  .mobile-nav { display: flex !important; }
+  .landing-hero { grid-template-columns: 1fr !important; padding: 48px 20px !important; }
+  .landing-hero h1 { font-size: clamp(38px, 11vw, 52px) !important; }
+  .how-grid { grid-template-columns: 1fr !important; }
+}

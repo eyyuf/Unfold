@@ -43,4 +43,29 @@ class ApiFlowTests(TestCase):
         self.assertTrue(User.objects.filter(email="new@example.com").exists())
         self.assertIn("_auth_user_id", self.client.session)
 
+    def test_completion_report_insights_and_profile_update(self):
+        user = User.objects.create_user("report@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        item_id = started.data["id"]
+        self.client.post(
+            f"/api/v1/user-experiments/{item_id}/checkins/",
+            {"day": 1, "energy": 4, "curiosity": 5, "meaning": 4, "difficulty": 2},
+            format="json",
+        )
+        completed = self.client.post(
+            f"/api/v1/user-experiments/{item_id}/final-reflection/",
+            {"repeat_intent": 5, "summary": "I stayed curious and wanted to continue."},
+            format="json",
+        )
+        self.assertEqual(completed.status_code, 200)
+        report = self.client.get(f"/api/v1/user-experiments/{item_id}/report/")
+        self.assertGreater(report.data["fit_signal"], 0)
+        self.assertEqual(report.data["strongest_signal"], "Curiosity")
+        insights = self.client.get("/api/v1/insights/")
+        self.assertEqual(insights.data["completed_count"], 1)
+        profile = self.client.patch("/api/v1/auth/me/", {"display_name": "Ari", "reminders_enabled": True}, format="json")
+        self.assertEqual(profile.data["display_name"], "Ari")
+        self.assertTrue(profile.data["reminders_enabled"])
+
 # Create your tests here.

@@ -10,6 +10,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ["id", "email", "display_name", "timezone", "reminder_time", "reminders_enabled", "password"]
     def create(self, data): return User.objects.create_user(**data)
+    def update(self, instance, data):
+        data.pop("password", None)
+        return super().update(instance, data)
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -37,7 +40,12 @@ class UserExperimentSerializer(serializers.ModelSerializer):
         read_only_fields = ["user", "status"]
 
 class CheckInSerializer(serializers.ModelSerializer):
+    energy = serializers.IntegerField(min_value=1, max_value=5)
+    curiosity = serializers.IntegerField(min_value=1, max_value=5)
+    meaning = serializers.IntegerField(min_value=1, max_value=5)
+    difficulty = serializers.IntegerField(min_value=1, max_value=5)
     class Meta: model, exclude = CheckIn, ["user_experiment"]
 
 class FinalReflectionSerializer(serializers.ModelSerializer):
+    repeat_intent = serializers.IntegerField(min_value=1, max_value=5)
     class Meta: model, exclude = FinalReflection, ["user_experiment"]

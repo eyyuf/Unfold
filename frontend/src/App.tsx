@@ -39,14 +39,21 @@ const C = {
   sky:     '#38BDF8',
 }
 
-type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile'
-type UserData = { id: number; email: string; display_name: string }
+type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile'
+type UserData = {
+  id: number; email: string; display_name: string; timezone?: string
+  reminder_time?: string | null; reminders_enabled?: boolean
+}
 type ExperimentData = {
   id: number; category: string; title: string; slug: string; description: string
   duration_days: number; minutes_per_day: number
   daily_tasks: { day: number; title: string; instructions: string }[]
 }
 type ActiveExperiment = { id: number; start_date: string; experiment: ExperimentData }
+type ExperimentReport = {
+  id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
+  fit_signal: number; strongest_signal: string; dimensions: Record<string, number>; summary: string
+}
 const authSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -242,7 +249,7 @@ function AppShell({ screen, setScreen, children }: {
         borderRight: `1px solid ${C.br}`,
         display: 'flex', flexDirection: 'column',
         padding: '20px 12px',
-      }} className="hidden md:flex">
+      }} className="desktop-sidebar">
         {/* Logo */}
         <div style={{ padding: '8px 12px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -301,7 +308,7 @@ function AppShell({ screen, setScreen, children }: {
         </main>
 
         {/* Bottom nav – mobile */}
-        <nav className="md:hidden" style={{
+        <nav className="mobile-nav" style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
           background: C.bg2, borderTop: `1px solid ${C.br}`,
           display: 'flex', padding: '8px 0 12px',
@@ -401,7 +408,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </header>
 
       {/* Hero */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+      <section className="landing-hero" style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
         <div className="fade-up">
           <div style={{ marginBottom: 16 }}>
             <Badge label="Evidence-based self-discovery" color={C.acc} />
@@ -458,7 +465,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <h2 style={{ fontSize: 34, fontWeight: 700, marginBottom: 12, letterSpacing: '-0.02em' }}>How it works</h2>
           <p style={{ color: C.t3, fontSize: 16 }}>Three steps to uncover what fits you.</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        <div className="how-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
           {[
             { n: '01', title: 'Choose', desc: 'Pick one short experiment from our library — writing, photography, teaching, coding, and more.', color: C.purple, Icon: Compass },
             { n: '02', title: 'Try', desc: 'Complete small real-world tasks each day and record how the activity felt — not how you wish it felt.', color: C.acc, Icon: Play },
@@ -640,13 +647,28 @@ function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // ─── SCREEN: Home ─────────────────────────────────────────────────────────────
 function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const { data: active, isLoading } = useQuery({
+    queryKey: ['active-experiment'],
+    queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/'),
+  })
+  const user = useQueryClient().getQueryData<UserData>(['me'])
+  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Loading your experiment…</div>
+  if (!active) return (
+    <div style={{ maxWidth: 680, margin: '80px auto', padding: 24, textAlign: 'center' }}>
+      <h1>No active experiment yet</h1>
+      <p style={{ color: C.t3, marginBottom: 24 }}>Choose a short experiment to begin collecting evidence.</p>
+      <Btn onClick={() => setScreen('library')}>Explore experiments</Btn>
+    </div>
+  )
+  const day = 1
+  const task = active.experiment.daily_tasks.find((item) => item.day === day)
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
-          <p style={{ color: C.t4, fontSize: 13, marginBottom: 4 }}>Monday, July 28</p>
-          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>Good evening, Eyyu</h1>
+          <p style={{ color: C.t4, fontSize: 13, marginBottom: 4 }}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(new Date())}</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>Welcome, {user?.display_name || user?.email.split('@')[0]}</h1>
           <p style={{ color: C.t3, fontSize: 14 }}>One experiment at a time.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -668,29 +690,29 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%)' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <Badge label="Creative" color={C.purple} />
+          <Badge label={active.experiment.category} color={C.purple} />
           <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>Photography Walk</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{active.experiment.title}</h2>
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 13, color: C.t3 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> Day 3 of 7</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} /> ~30 min/day</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> Day {day} of {active.experiment.duration_days}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} /> ~{active.experiment.minutes_per_day} min/day</span>
         </div>
 
-        <ProgressBar value={3} max={7} label="Progress" />
+        <ProgressBar value={day} max={active.experiment.duration_days} label="Progress" />
 
         {/* Day indicators */}
         <div style={{ display: 'flex', gap: 6, margin: '16px 0 20px' }}>
-          {[1,2,3,4,5,6,7].map(d => (
+          {Array.from({ length: active.experiment.duration_days }, (_, index) => index + 1).map(d => (
             <div key={d} style={{
               width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 600,
-              background: d < 3 ? C.acc : d === 3 ? C.accS : C.s2,
-              color: d < 3 ? '#052e16' : d === 3 ? C.acc : C.t4,
-              border: d === 3 ? `1px solid ${C.accB}` : 'none',
+               background: d < day ? C.acc : d === day ? C.accS : C.s2,
+               color: d < day ? '#052e16' : d === day ? C.acc : C.t4,
+               border: d === day ? `1px solid ${C.accB}` : 'none',
             }}>
-              {d < 3 ? <Check size={13} /> : d}
+               {d < day ? <Check size={13} /> : d}
             </div>
           ))}
         </div>
@@ -698,9 +720,9 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         {/* Today's task */}
         <div style={{ background: C.s2, borderRadius: 12, padding: '16px', marginBottom: 20, border: `1px solid ${C.br}` }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.t4, letterSpacing: '0.06em', marginBottom: 8, textTransform: 'uppercase' }}>Today's task</div>
-          <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 6 }}>Take ten photos focused on shadows and light contrast.</p>
+          <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 6 }}>{task?.instructions ?? 'Complete today’s experiment task.'}</p>
           <div style={{ display: 'flex', gap: 12, fontSize: 13, color: C.t4 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> 30 minutes</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {active.experiment.minutes_per_day} minutes</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Bell size={12} /> Reminder at 7:30 PM</span>
           </div>
         </div>
@@ -1150,24 +1172,59 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="ghost" full onClick={() => setScreen('home')}>Back to home</Btn>
-          <Btn variant="secondary" full onClick={() => setScreen('report')}>View progress</Btn>
+          <Btn variant="secondary" full onClick={() => setScreen('reflection')}>Finish experiment</Btn>
         </div>
       </div>
     </div>
   )
 }
 
+function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const [repeatIntent, setRepeatIntent] = useState(4)
+  const [summary, setSummary] = useState('')
+  const queryClient = useQueryClient()
+  const { data: active } = useQuery({ queryKey: ['active-experiment'], queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/') })
+  const submit = useMutation({
+    mutationFn: () => {
+      if (!active) throw new Error('No active experiment found.')
+      return apiRequest(`/user-experiments/${active.id}/final-reflection/`, {
+        method: 'POST', body: JSON.stringify({ repeat_intent: repeatIntent, summary }),
+      })
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['active-experiment'], null)
+      queryClient.invalidateQueries({ queryKey: ['evidence-vault'] })
+      setScreen('report')
+    },
+  })
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card style={{ width: '100%', maxWidth: 560, padding: 32 }}>
+        <Badge label="Final reflection" color={C.acc} />
+        <h1 style={{ fontSize: 28, margin: '18px 0 8px' }}>What did this experiment reveal?</h1>
+        <p style={{ color: C.t3, lineHeight: 1.6 }}>Your response becomes part of your evidence report. It is a clue, not a verdict.</p>
+        <label style={{ display: 'block', margin: '24px 0 10px', color: C.t2 }}>Would you choose to continue this activity?</label>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+          {[1,2,3,4,5].map((value) => <button key={value} onClick={() => setRepeatIntent(value)} style={{ flex: 1, padding: 14, borderRadius: 10, border: `1px solid ${value === repeatIntent ? C.acc : C.br}`, background: value === repeatIntent ? C.accS : C.s2, color: value === repeatIntent ? C.acc : C.t2, cursor: 'pointer' }}>{value}</button>)}
+        </div>
+        <textarea value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="What stood out? What would you change?" style={{ width: '100%', minHeight: 130, padding: 14, borderRadius: 10, background: C.s2, color: C.t1, border: `1px solid ${C.br}`, font: 'inherit', marginBottom: 18 }} />
+        {submit.error && <p role="alert" style={{ color: C.red }}>{submit.error.message}</p>}
+        <Btn full size="lg" disabled={!summary.trim() || submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Creating report…' : 'Complete and view report'}</Btn>
+      </Card>
+    </div>
+  )
+}
+
 // ─── SCREEN: Experiment Report ─────────────────────────────────────────────
 function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const dims = [
-    { l: 'Curiosity', v: 92 },
-    { l: 'Enjoyment', v: 84 },
-    { l: 'Desire to continue', v: 88 },
-    { l: 'Energy', v: 74 },
-    { l: 'Meaning', v: 68 },
-    { l: 'Desire to improve', v: 80 },
-    { l: 'Consistency', v: 71 },
-  ]
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ['evidence-vault'],
+    queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
+  })
+  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Building your report…</div>
+  const report = reports[0]
+  if (!report) return <div style={{ padding: 40, color: C.t3 }}>Complete an experiment to see your first report.</div>
+  const dims = Object.entries(report.dimensions).map(([l, v]) => ({ l, v }))
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1179,17 +1236,17 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Experiment summary */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
-          <Badge label="Creative" color={C.purple} />
-          <span style={{ fontSize: 13, color: C.t4 }}>Completed April 18, 2025</span>
+          <Badge label={report.experiment.category} color={C.purple} />
+          <span style={{ fontSize: 13, color: C.t4 }}>Started {report.start_date}</span>
         </div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>Photography Walk</h1>
-        <p style={{ fontSize: 15, color: C.t3 }}>7 days · 6 of 7 completed · 3.2 hours total</p>
+        <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{report.experiment.title}</h1>
+        <p style={{ fontSize: 15, color: C.t3 }}>{report.experiment.duration_days} days · {report.checkin_count} check-ins collected</p>
       </div>
 
       {/* Fit signal */}
       <Card accent style={{ textAlign: 'center', marginBottom: 24, padding: '32px 24px' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.06em', marginBottom: 12 }}>FIT SIGNAL</div>
-        <div style={{ fontSize: 72, fontWeight: 800, color: C.acc, lineHeight: 1, marginBottom: 8, letterSpacing: '-0.04em' }}>82%</div>
+        <div style={{ fontSize: 72, fontWeight: 800, color: C.acc, lineHeight: 1, marginBottom: 8, letterSpacing: '-0.04em' }}>{report.fit_signal}%</div>
         <p style={{ fontSize: 14, color: C.t3, maxWidth: 380, margin: '0 auto' }}>
           Based on your daily check-ins, completion consistency, and final reflection. This is not a score — it is a summary of your own responses.
         </p>
@@ -1206,7 +1263,7 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         <Card style={{ background: `${C.acc}0e`, border: `1px solid ${C.acc}22` }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C.acc, letterSpacing: '0.05em', marginBottom: 8 }}>WHAT STOOD OUT</div>
           <p style={{ fontSize: 15, color: C.t2, lineHeight: 1.65 }}>
-            You consistently wanted to continue after the task, and your curiosity stayed high even on lower-energy days. This may be worth exploring through another creative experiment.
+            {report.strongest_signal} was the clearest signal in your check-ins. This may be worth exploring through another {report.experiment.category.toLowerCase()} experiment.
           </p>
         </Card>
         <Card style={{ background: `${C.amber}0e`, border: `1px solid ${C.amber}22` }}>
@@ -1221,7 +1278,7 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <Card style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>What this may suggest</h2>
         <p style={{ fontSize: 15, color: C.t2, lineHeight: 1.7 }}>
-          A pattern may be forming around visual creativity and observation. The high curiosity and desire to continue — even on constrained days — suggests the activity may deserve further exploration. This does not mean photography is your purpose. It means the signal is strong enough to investigate.
+          {report.summary || 'Your responses suggest this activity deserves further exploration.'} This does not define your purpose; it is evidence you can compare with future experiments.
         </p>
       </Card>
 
@@ -1256,24 +1313,18 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // ─── SCREEN: Insights ──────────────────────────────────────────────────────
 function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
-  const patterns = [
-    { text: 'Creative activities repeatedly energize you', color: C.purple, Icon: Star },
-    { text: 'You show high curiosity in observational tasks', color: C.blue, Icon: Brain },
-    { text: 'You tend to want to improve when the activity is visual', color: C.acc, Icon: TrendingUp },
-  ]
-
-  const categories = [
-    { label: 'Creative', v: 85, color: C.purple, n: 3 },
-    { label: 'Technical', v: 62, color: C.blue, n: 1 },
-    { label: 'Service', v: 54, color: C.teal, n: 1 },
-    { label: 'Physical', v: 41, color: C.amber, n: 1 },
-  ]
+  const { data } = useQuery({
+    queryKey: ['insights'],
+    queryFn: () => apiRequest<{ completed_count: number; average_fit: number; patterns: string[]; categories: { label: string; value: number; count: number }[] }>('/insights/'),
+  })
+  const patterns = (data?.patterns ?? []).map((text, index) => ({ text, color: [C.purple, C.blue, C.acc][index % 3], Icon: [Star, Brain, TrendingUp][index % 3] }))
+  const categories = (data?.categories ?? []).map((item) => ({ label: item.label, v: item.value, n: item.count, color: C.purple }))
 
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Your insights</h1>
-        <p style={{ fontSize: 15, color: C.t3 }}>Patterns from 6 completed experiments.</p>
+        <p style={{ fontSize: 15, color: C.t3 }}>Patterns from {data?.completed_count ?? 0} completed experiments.</p>
       </div>
 
       {/* Constellation evidence map */}
@@ -1335,7 +1386,7 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
         {[
-          { label: 'Avg fit signal', value: '74%', sub: 'across 6 experiments', color: C.acc },
+          { label: 'Avg fit signal', value: `${data?.average_fit ?? 0}%`, sub: `across ${data?.completed_count ?? 0} experiments`, color: C.acc },
           { label: 'Curiosity rate', value: '4.3/5', sub: 'avg across all check-ins', color: C.blue },
           { label: 'Repeat intent', value: '83%', sub: 'of days you wanted to continue', color: C.purple },
           { label: 'Consistency', value: '78%', sub: 'tasks completed on schedule', color: C.amber },
@@ -1353,13 +1404,11 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
 
 // ─── SCREEN: Evidence Vault ───────────────────────────────────────────────────
 function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const entries = [
-    { title: 'Photography Walk', cat: 'Creative', color: C.purple, date: 'April 18, 2025', fit: 82, signal: 'Curiosity', quote: '"You wanted to keep walking past the planned time."', status: 'completed' },
-    { title: 'Write One Page a Day', cat: 'Creative', color: C.purple, date: 'March 22, 2025', fit: 87, signal: 'Curiosity', quote: '"Writing felt urgent and natural by day 5."', status: 'completed' },
-    { title: 'Code a Small Project', cat: 'Technical', color: C.blue, date: 'February 11, 2025', fit: 63, signal: 'Energy', quote: '"Problem-solving was engaging but finishing was hard."', status: 'completed' },
-    { title: 'Teach Someone Something', cat: 'Service', color: C.teal, date: 'January 5, 2025', fit: 55, signal: 'Meaning', quote: '"Felt meaningful but draining to prepare consistently."', status: 'completed' },
-    { title: 'Strength Training Basics', cat: 'Physical', color: C.amber, date: 'December 2024', fit: 44, signal: 'Consistency', quote: '"Enjoyed the effort but found the routine rigid."', status: 'abandoned', abandonDay: 4 },
-  ]
+  const { data: entries = [] } = useQuery({
+    queryKey: ['evidence-vault'],
+    queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
+  })
+  const averageFit = entries.length ? Math.round(entries.reduce((sum, entry) => sum + entry.fit_signal, 0) / entries.length) : 0
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1375,7 +1424,7 @@ function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
       {/* Summary row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
-        {[{ n: '5', l: 'experiments' }, { n: '74%', l: 'avg fit signal' }, { n: '31', l: 'check-ins' }].map(({ n, l }) => (
+        {[{ n: String(entries.length), l: 'experiments' }, { n: `${averageFit}%`, l: 'avg fit signal' }, { n: String(entries.reduce((sum, entry) => sum + entry.checkin_count, 0)), l: 'check-ins' }].map(({ n, l }) => (
           <Card key={l} style={{ textAlign: 'center', padding: '16px 12px' }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: C.t1, marginBottom: 2 }}>{n}</div>
             <div style={{ fontSize: 12, color: C.t4 }}>{l}</div>
@@ -1385,28 +1434,28 @@ function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
       {/* Entries */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {entries.map(({ title, cat, color, date, fit, signal, quote, status, abandonDay }) => (
-          <Card key={title} onClick={() => setScreen('report')} style={{ cursor: 'pointer' }}>
+        {entries.map((entry) => (
+          <Card key={entry.id} onClick={() => setScreen('report')} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Badge label={cat} color={color} />
-                {status === 'abandoned' && <span style={{ fontSize: 11, color: C.t4, fontWeight: 600 }}>Ended day {abandonDay}</span>}
+                <Badge label={entry.experiment.category} color={C.purple} />
+                {entry.status === 'abandoned' && <span style={{ fontSize: 11, color: C.t4, fontWeight: 600 }}>Ended early</span>}
               </div>
-              <span style={{ fontSize: 13, color: C.t4 }}>Completed {date}</span>
+              <span style={{ fontSize: 13, color: C.t4 }}>Started {entry.start_date}</span>
             </div>
-            <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{title}</h3>
+            <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 12 }}>{entry.experiment.title}</h3>
             <div style={{ display: 'flex', gap: 20, marginBottom: 12, fontSize: 14 }}>
               <div>
                 <span style={{ color: C.t4, fontSize: 12 }}>Fit signal </span>
-                <strong style={{ color: fit >= 70 ? C.acc : fit >= 50 ? C.amber : C.t2 }}>{fit}%</strong>
+                <strong style={{ color: entry.fit_signal >= 70 ? C.acc : entry.fit_signal >= 50 ? C.amber : C.t2 }}>{entry.fit_signal}%</strong>
               </div>
               <div>
                 <span style={{ color: C.t4, fontSize: 12 }}>Strongest signal </span>
-                <strong style={{ color: C.t2 }}>{signal}</strong>
+                <strong style={{ color: C.t2 }}>{entry.strongest_signal}</strong>
               </div>
             </div>
             <div style={{ borderTop: `1px solid ${C.br}`, paddingTop: 12 }}>
-              <p style={{ fontSize: 13, color: C.t3, fontStyle: 'italic', margin: 0 }}>{quote}</p>
+              <p style={{ fontSize: 13, color: C.t3, fontStyle: 'italic', margin: 0 }}>{entry.summary || 'Evidence collected from your daily check-ins.'}</p>
             </div>
           </Card>
         ))}
@@ -1416,8 +1465,20 @@ function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 }
 
 // ─── SCREEN: Profile ──────────────────────────────────────────────────────────
-function ProfileScreen() {
+function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark')
+  const queryClient = useQueryClient()
+  const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData>('/auth/me/') })
+  const [displayName, setDisplayName] = useState(user?.display_name ?? '')
+  const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
+  const updateProfile = useMutation({
+    mutationFn: (data: object) => apiRequest<UserData>('/auth/me/', { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: (data) => queryClient.setQueryData(['me'], data),
+  })
+  const logoutUser = useMutation({
+    mutationFn: () => apiRequest('/auth/logout/', { method: 'POST' }),
+    onSuccess: () => { queryClient.clear(); setScreen('landing') },
+  })
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1426,16 +1487,20 @@ function ProfileScreen() {
       {/* Avatar */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 20 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${C.purple}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: C.purple }}>E</div>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${C.purple}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: C.purple }}>{(user?.display_name || user?.email || 'U')[0].toUpperCase()}</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Eyyu</div>
-            <div style={{ color: C.t4, fontSize: 14 }}>eyyu@example.com</div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{user?.display_name || 'Explorer'}</div>
+            <div style={{ color: C.t4, fontSize: 14 }}>{user?.email}</div>
           </div>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', gap: 10, marginBottom: 16 }}>
+          <input aria-label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" style={{ background: C.s2, border: `1px solid ${C.br}`, color: C.t1, borderRadius: 9, padding: '10px 12px', font: 'inherit' }} />
+          <Btn size="sm" disabled={updateProfile.isPending} onClick={() => updateProfile.mutate({ display_name: displayName })}>Save name</Btn>
+        </div>
         {[
-          { label: 'Display name', value: 'Eyyu' },
-          { label: 'Email', value: 'eyyu@example.com' },
-          { label: 'Timezone', value: 'UTC+3 (East Africa Time)' },
+          { label: 'Display name', value: user?.display_name || 'Not set' },
+          { label: 'Email', value: user?.email || '' },
+          { label: 'Timezone', value: user?.timezone || 'Africa/Nairobi' },
         ].map(({ label, value }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: `1px solid ${C.br}` }}>
             <span style={{ fontSize: 14, color: C.t3 }}>{label}</span>
@@ -1448,21 +1513,22 @@ function ProfileScreen() {
       <Card style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Reminders</h2>
         {[
-          { label: 'Daily reminders', active: true },
+          { label: 'Daily reminders', active: Boolean(user?.reminders_enabled) },
           { label: 'Email reminders', active: false },
         ].map(({ label, active }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontSize: 14, color: C.t2 }}>{label}</span>
-            <div style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.acc : C.s2, position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+            <div onClick={() => label === 'Daily reminders' && updateProfile.mutate({ reminders_enabled: !active })} style={{ width: 44, height: 24, borderRadius: 12, background: active ? C.acc : C.s2, position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
               <div style={{ position: 'absolute', top: 3, left: active ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: C.t1, transition: 'left 0.2s' }} />
             </div>
           </div>
         ))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: `1px solid ${C.br}` }}>
           <span style={{ fontSize: 14, color: C.t2 }}>Preferred time</span>
-          <span style={{ fontSize: 14, color: C.t1 }}>7:30 PM (UTC+3)</span>
+          <input aria-label="Preferred reminder time" type="time" value={reminderTime} onChange={(event) => { setReminderTime(event.target.value); updateProfile.mutate({ reminder_time: event.target.value }) }} style={{ background: C.s2, border: `1px solid ${C.br}`, color: C.t1, borderRadius: 8, padding: 8 }} />
         </div>
       </Card>
+      <Btn variant="ghost" full onClick={() => logoutUser.mutate()}>Log out</Btn>
 
       {/* Appearance */}
       <Card style={{ marginBottom: 20 }}>
@@ -1504,44 +1570,6 @@ function ProfileScreen() {
   )
 }
 
-// ─── Demo screen navigator ────────────────────────────────────────────────────
-function ScreenNav({ screen, setScreen }: { screen: Screen; setScreen: (s: Screen) => void }) {
-  const screens: { id: Screen; label: string }[] = [
-    { id: 'landing', label: 'Landing' },
-    { id: 'onboarding', label: 'Onboarding' },
-    { id: 'home', label: 'Home' },
-    { id: 'library', label: 'Library' },
-    { id: 'detail', label: 'Detail' },
-    { id: 'checkin', label: 'Check-in' },
-    { id: 'checkin-done', label: 'Check-in done' },
-    { id: 'report', label: 'Report' },
-    { id: 'insights', label: 'Insights' },
-    { id: 'vault', label: 'Vault' },
-    { id: 'profile', label: 'Profile' },
-  ]
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: '#050507', borderBottom: `1px solid ${C.br}`,
-      padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto',
-    }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: C.t4, letterSpacing: '0.05em', flexShrink: 0, marginRight: 4 }}>SCREENS</span>
-      {screens.map(({ id, label }) => (
-        <button key={id} onClick={() => setScreen(id)} style={{
-          padding: '4px 10px', borderRadius: 6, border: `1px solid ${screen === id ? C.accB : C.br}`,
-          background: screen === id ? C.accS : 'transparent',
-          color: screen === id ? C.acc : C.t4,
-          fontFamily: 'inherit', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-          whiteSpace: 'nowrap', transition: 'all 0.12s', flexShrink: 0,
-        }}>
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // ─── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const navigate = useNavigate()
@@ -1549,7 +1577,7 @@ export default function App() {
   const paths: Record<Screen, string> = {
     landing: '/', login: '/login', register: '/register', onboarding: '/onboarding', home: '/app', library: '/app/explore',
     detail: '/app/experiments/photography-walk', checkin: '/app/check-in',
-    'checkin-done': '/app/check-in/complete', report: '/app/report',
+    'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
     insights: '/app/insights', vault: '/app/vault', profile: '/app/profile',
   }
   const screen = (location.pathname.startsWith('/app/experiments/') ? 'detail' :
@@ -1572,6 +1600,7 @@ export default function App() {
       case 'onboarding': return <OnboardingScreen setScreen={setScreen} />
       case 'checkin':    return <CheckinScreen setScreen={setScreen} />
       case 'checkin-done': return <CheckinDoneScreen setScreen={setScreen} />
+      case 'reflection': return <FinalReflectionScreen setScreen={setScreen} />
       default: break
     }
 
@@ -1587,7 +1616,7 @@ export default function App() {
           case 'report':   return <ReportScreen setScreen={setScreen} />
           case 'insights': return <InsightsScreen setScreen={setScreen} />
           case 'vault':    return <VaultScreen setScreen={setScreen} />
-          case 'profile':  return <ProfileScreen />
+          case 'profile':  return <ProfileScreen setScreen={setScreen} />
           default:         return null
         }
       })()
@@ -1597,9 +1626,6 @@ export default function App() {
   }
 
   return (
-    <div style={{ paddingTop: 38 }}>
-      <ScreenNav screen={screen} setScreen={setScreen} />
-      {renderScreen()}
-    </div>
+    <div>{renderScreen()}</div>
   )
 }

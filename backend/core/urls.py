@@ -10,5 +10,7 @@ urlpatterns = [
     path("user-experiments/active/", views.active_experiment),
     path("user-experiments/<int:pk>/checkins/", views.submit_checkin),
     path("user-experiments/<int:pk>/final-reflection/", views.final_reflection),
+    path("user-experiments/<int:pk>/report/", views.experiment_report),
+    path("insights/", views.insights_view),
     path("evidence-vault/", views.evidence_vault),
 ]
