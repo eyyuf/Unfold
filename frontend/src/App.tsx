@@ -1480,7 +1480,7 @@ function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark')
   const queryClient = useQueryClient()
-  const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData>('/auth/me/') })
+  const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData | null>('/auth/me/') })
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
   const updateProfile = useMutation({
@@ -1597,7 +1597,7 @@ export default function App() {
   const setScreen = (next: Screen) => navigate(paths[next])
   const { data: user, isLoading: authLoading } = useQuery({
     queryKey: ['me'],
-    queryFn: () => apiRequest<UserData>('/auth/me/'),
+    queryFn: () => apiRequest<UserData | null>('/auth/me/'),
     retry: false,
   })
 

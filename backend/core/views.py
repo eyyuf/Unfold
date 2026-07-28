@@ -55,7 +55,15 @@ def logout_view(request):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(["GET", "PATCH"])
+@permission_classes([permissions.AllowAny])
 def me_view(request):
+    if not request.user.is_authenticated:
+        if request.method == "GET":
+            return Response(None)
+        return Response(
+            {"detail": "Authentication credentials were not provided."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     if request.method == "PATCH":
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

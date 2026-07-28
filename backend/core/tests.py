@@ -20,8 +20,10 @@ class ApiFlowTests(TestCase):
         self.assertEqual(response.data[0]["slug"], "photography-walk")
 
     def test_user_endpoints_reject_anonymous_requests_without_server_errors(self):
+        session_response = self.client.get("/api/v1/auth/me/")
+        self.assertEqual(session_response.status_code, 200)
+        self.assertIsNone(session_response.data)
         for path in (
-            "/api/v1/auth/me/",
             "/api/v1/user-experiments/active/",
             "/api/v1/evidence-vault/",
             "/api/v1/insights/",
