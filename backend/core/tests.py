@@ -32,4 +32,15 @@ class ApiFlowTests(TestCase):
         self.assertEqual(checkin.status_code, 200)
         self.assertEqual(checkin.data["curiosity"], 5)
 
+    def test_registration_creates_session_and_csrf_cookie(self):
+        self.client.get("/api/v1/auth/csrf/")
+        response = self.client.post(
+            "/api/v1/auth/register/",
+            {"email": "new@example.com", "password": "a-secure-password"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(User.objects.filter(email="new@example.com").exists())
+        self.assertIn("_auth_user_id", self.client.session)
+
 # Create your tests here.

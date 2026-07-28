@@ -1,0 +1,21 @@
+[
+  {"model":"experiments.category","pk":1,"fields":{"name":"Creative","slug":"creative","color":"#8B5CF6"}},
+  {"model":"experiments.category","pk":2,"fields":{"name":"Technical","slug":"technical","color":"#3B82F6"}},
+  {"model":"experiments.category","pk":3,"fields":{"name":"Service","slug":"service","color":"#14B8A6"}},
+  {"model":"experiments.category","pk":4,"fields":{"name":"Nature","slug":"nature","color":"#16A34A"}},
+  {"model":"experiments.category","pk":5,"fields":{"name":"Physical","slug":"physical","color":"#F59E0B"}},
+  {"model":"experiments.experiment","pk":1,"fields":{"category":1,"title":"Photography Walk","slug":"photography-walk","description":"Take focused photo walks and discover how visual attention changes your experience.","duration_days":7,"minutes_per_day":30,"published":true}},
+  {"model":"experiments.experiment","pk":2,"fields":{"category":1,"title":"Write One Page a Day","slug":"write-one-page","description":"Build a short daily writing practice and observe how creativity and curiosity shift.","duration_days":7,"minutes_per_day":20,"published":true}},
+  {"model":"experiments.experiment","pk":3,"fields":{"category":2,"title":"Code a Small Project","slug":"code-a-small-project","description":"Build a small tool from scratch and notice where your focus and energy go.","duration_days":14,"minutes_per_day":30,"published":true}},
+  {"model":"experiments.experiment","pk":4,"fields":{"category":3,"title":"Teach Someone Something","slug":"teach-someone","description":"Prepare short lessons and observe how it feels to share knowledge.","duration_days":5,"minutes_per_day":25,"published":true}},
+  {"model":"experiments.experiment","pk":5,"fields":{"category":4,"title":"Morning Nature Walk","slug":"morning-nature-walk","description":"Begin each day outdoors and track how natural environments affect your mental state.","duration_days":7,"minutes_per_day":20,"published":true}},
+  {"model":"experiments.experiment","pk":6,"fields":{"category":5,"title":"Strength Training Basics","slug":"strength-training","description":"Follow a beginner routine and notice how physical effort changes your energy.","duration_days":14,"minutes_per_day":30,"published":true}},
+  {"model":"experiments.dailytask","pk":1,"fields":{"experiment":1,"day":1,"title":"Notice the light","instructions":"Choose a location with interesting light and take ten photographs."}},
+  {"model":"experiments.dailytask","pk":2,"fields":{"experiment":1,"day":2,"title":"Find shadows","instructions":"Photograph shadows, contrast, and negative space."}},
+  {"model":"experiments.dailytask","pk":3,"fields":{"experiment":1,"day":3,"title":"Choose one image","instructions":"Review your photographs and pick one that surprises you."}},
+  {"model":"experiments.dailytask","pk":4,"fields":{"experiment":2,"day":1,"title":"Write without editing","instructions":"Write one page continuously without correcting yourself."}},
+  {"model":"experiments.dailytask","pk":5,"fields":{"experiment":3,"day":1,"title":"Choose a tiny problem","instructions":"Define one useful tool you can finish in fourteen days."}},
+  {"model":"experiments.dailytask","pk":6,"fields":{"experiment":4,"day":1,"title":"Pick a lesson","instructions":"Choose one useful idea you can explain in ten minutes."}},
+  {"model":"experiments.dailytask","pk":7,"fields":{"experiment":5,"day":1,"title":"Walk without headphones","instructions":"Spend twenty minutes outdoors noticing sounds and movement."}},
+  {"model":"experiments.dailytask","pk":8,"fields":{"experiment":6,"day":1,"title":"Learn the movements","instructions":"Practice a short beginner routine at a comfortable pace."}}
+]

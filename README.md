@@ -13,5 +13,6 @@ npm --prefix frontend install
 npm --prefix frontend run dev
 python -m pip install -r backend/requirements.txt
 python backend/manage.py migrate
+python backend/manage.py loaddata experiments
 python backend/manage.py runserver
 ```

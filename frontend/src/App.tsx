@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { apiRequest } from './api/client'
 import {
   Home, Compass, BarChart2, Archive, User, Bell, Bookmark,
   ChevronRight, ChevronLeft, ArrowRight, Check, X, Play,
@@ -34,7 +39,19 @@ const C = {
   sky:     '#38BDF8',
 }
 
-type Screen = 'landing' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile'
+type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile'
+type UserData = { id: number; email: string; display_name: string }
+type ExperimentData = {
+  id: number; category: string; title: string; slug: string; description: string
+  duration_days: number; minutes_per_day: number
+  daily_tasks: { day: number; title: string; instructions: string }[]
+}
+type ActiveExperiment = { id: number; start_date: string; experiment: ExperimentData }
+const authSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+type AuthFields = z.infer<typeof authSchema>
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
 
@@ -311,6 +328,45 @@ function AppShell({ screen, setScreen, children }: {
 }
 
 // ─── SCREEN: Landing ─────────────────────────────────────────────────────────
+function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen: (s: Screen) => void }) {
+  const queryClient = useQueryClient()
+  const { register, handleSubmit, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema) })
+  const mutation = useMutation({
+    mutationFn: (values: AuthFields) => apiRequest<UserData>(`/auth/${mode}/`, { method: 'POST', body: JSON.stringify(values) }),
+    onSuccess: (user) => {
+      queryClient.setQueryData(['me'], user)
+      setScreen(mode === 'register' ? 'onboarding' : 'home')
+    },
+  })
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card style={{ width: '100%', maxWidth: 420, padding: 32 }}>
+        <button onClick={() => setScreen('landing')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}>
+          <ChevronLeft size={16} /> Back
+        </button>
+        <Badge label="Your evidence stays private" color={C.acc} />
+        <h1 style={{ fontSize: 30, margin: '18px 0 8px' }}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
+        <p style={{ color: C.t3, marginBottom: 24 }}>{mode === 'login' ? 'Continue your active experiment.' : 'Start collecting evidence from real experience.'}</p>
+        <form onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+          {(['email', 'password'] as const).map((field) => (
+            <label key={field} style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 18 }}>
+              <span style={{ display: 'block', marginBottom: 7 }}>{field === 'email' ? 'Email' : 'Password'}</span>
+              <input {...register(field)} type={field} autoComplete={field === 'email' ? 'email' : mode === 'login' ? 'current-password' : 'new-password'}
+                style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${errors[field] ? C.red : C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} />
+              {errors[field] && <span style={{ color: C.red, display: 'block', marginTop: 5, fontSize: 12 }}>{errors[field]?.message}</span>}
+            </label>
+          ))}
+          {mutation.error && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{mutation.error.message}</p>}
+          <Btn full size="lg" disabled={mutation.isPending}>{mutation.isPending ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}</Btn>
+        </form>
+        <button onClick={() => setScreen(mode === 'login' ? 'register' : 'login')} style={{ width: '100%', marginTop: 18, color: C.acc, background: 'none', border: 0, cursor: 'pointer' }}>
+          {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Log in'}
+        </button>
+      </Card>
+    </div>
+  )
+}
+
 function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const experiments = [
     { title: 'Write One Page a Day', cat: 'Creative', color: C.purple, duration: '7 days', time: '20 min/day', Icon: BookOpen },
@@ -339,8 +395,8 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button onClick={() => setScreen('library')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
-          <Btn variant="ghost" size="sm" onClick={() => setScreen('home')}>Log in</Btn>
-          <Btn variant="primary" size="sm" onClick={() => setScreen('onboarding')}>Start free</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => setScreen('login')}>Log in</Btn>
+          <Btn variant="primary" size="sm" onClick={() => setScreen('register')}>Start free</Btn>
         </nav>
       </header>
 
@@ -358,7 +414,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             Try short activities, record how they feel, and uncover patterns about what energizes you, matters to you, and deserves more of your attention.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Btn variant="primary" size="lg" onClick={() => setScreen('onboarding')}>
+            <Btn variant="primary" size="lg" onClick={() => setScreen('register')}>
               Start your first experiment <ArrowRight size={16} />
             </Btn>
             <Btn variant="ghost" size="lg" onClick={() => setScreen('library')}>
@@ -698,8 +754,10 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 }
 
 // ─── SCREEN: Library ─────────────────────────────────────────────────────────
-function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
   const [activeFilter, setActiveFilter] = useState('All')
+  const [search, setSearch] = useState('')
+  const navigate = useNavigate()
 
   const filters = [
     { label: 'All', color: C.t1 },
@@ -711,16 +769,24 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     { label: 'Physical', color: C.amber, Icon: Dumbbell },
   ]
 
-  const exps = [
-    { title: 'Write One Page a Day', cat: 'Creative', color: C.purple, Icon: BookOpen, days: 7, mins: 20, desc: 'Build a short daily writing practice and observe how creativity and curiosity shift.', badge: 'Good first experiment' },
-    { title: 'Photography Walk', cat: 'Creative', color: C.purple, Icon: Star, days: 7, mins: 30, desc: 'Take focused photo walks and discover how visual attention changes your experience.' },
-    { title: 'Teach Someone Something', cat: 'Service', color: C.teal, Icon: Users, days: 5, mins: 25, desc: 'Prepare short lessons and observe how it feels to share knowledge.' },
-    { title: 'Code a Small Project', cat: 'Technical', color: C.blue, Icon: Brain, days: 14, mins: 30, desc: 'Build a small tool from scratch and notice where your focus and energy go.', badge: 'Popular' },
-    { title: 'Morning Nature Walk', cat: 'Nature', color: C.acc, Icon: Leaf, days: 7, mins: 20, desc: 'Begin each day outdoors and track how natural environments affect your mental state.' },
-    { title: 'Volunteer One Hour', cat: 'Service', color: C.teal, Icon: Heart, days: 5, mins: 60, desc: 'Give structured time to a cause and observe feelings of contribution and meaning.' },
-    { title: 'Strength Training Basics', cat: 'Physical', color: C.amber, Icon: Dumbbell, days: 14, mins: 30, desc: 'Follow a beginner routine and notice how physical effort changes your energy.' },
-    { title: 'Public Speaking Practice', cat: 'Social', color: C.orange, Icon: Users, days: 7, mins: 20, desc: 'Record short video talks and observe how communication feels under your own direction.' },
-  ]
+  const { data = [], isLoading, error } = useQuery({
+    queryKey: ['experiments', activeFilter, search],
+    queryFn: () => apiRequest<ExperimentData[]>(`/experiments/?${new URLSearchParams({
+      ...(activeFilter !== 'All' ? { category: activeFilter.toLowerCase() } : {}),
+      ...(search ? { search } : {}),
+    })}`),
+  })
+  const categoryStyle: Record<string, { color: string; Icon: React.ElementType }> = {
+    Creative: { color: C.purple, Icon: Star }, Technical: { color: C.blue, Icon: Brain },
+    Social: { color: C.orange, Icon: Users }, Nature: { color: C.acc, Icon: Leaf },
+    Service: { color: C.teal, Icon: Heart }, Physical: { color: C.amber, Icon: Dumbbell },
+  }
+  const exps = data.map((item, index) => ({
+    ...item, cat: item.category, days: item.duration_days, mins: item.minutes_per_day,
+    desc: item.description, ...(categoryStyle[item.category] ?? { color: C.acc, Icon: Compass }),
+    badge: index === 0 ? 'Good first experiment' : undefined,
+  }))
+  const openExperiment = (slug: string) => navigate(`/app/experiments/${slug}`)
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -733,13 +799,15 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Search */}
       <div style={{ position: 'relative', marginBottom: 20 }}>
         <Search size={16} color={C.t4} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-        <input placeholder="Search experiments..." style={{
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search experiments..." style={{
           width: '100%', padding: '11px 14px 11px 40px', borderRadius: 10,
           background: C.s1, border: `1px solid ${C.br}`, color: C.t1,
           fontFamily: 'inherit', fontSize: 15, outline: 'none',
           boxSizing: 'border-box',
         }} />
       </div>
+      {isLoading && <p style={{ color: C.t3 }}>Loading experiments…</p>}
+      {error && <p role="alert" style={{ color: C.red }}>We could not load experiments. Please try again.</p>}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32 }}>
@@ -755,8 +823,8 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <span style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em' }}>RECOMMENDED FOR YOU</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {exps.slice(0, 2).map(({ title, cat, color, Icon, days, mins, desc, badge }) => (
-            <Card key={title} accent onClick={() => setScreen('detail')}>
+          {exps.slice(0, 2).map(({ title, slug, cat, color, Icon, days, mins, desc, badge }) => (
+            <Card key={title} accent onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -786,8 +854,8 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em', marginBottom: 14 }}>ALL EXPERIMENTS</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {exps.map(({ title, cat, color, Icon, days, mins, desc }) => (
-            <Card key={title} onClick={() => setScreen('detail')}>
+          {exps.map(({ title, slug, cat, color, Icon, days, mins, desc }) => (
+            <Card key={title} onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -810,11 +878,23 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
 // ─── SCREEN: Experiment Detail ────────────────────────────────────────────────
 function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const tasks = [
-    'Choose a location with interesting light — early morning or late afternoon works well.',
-    'Take at least ten photos focusing on shadows, contrast, and negative space.',
-    'Review your photos and pick one that surprises you.',
-  ]
+  const slug = useLocation().pathname.split('/').pop() ?? ''
+  const queryClient = useQueryClient()
+  const user = queryClient.getQueryData<UserData>(['me'])
+  const { data: experiment, isLoading, error } = useQuery({
+    queryKey: ['experiment', slug],
+    queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
+  })
+  const start = useMutation({
+    mutationFn: () => apiRequest<ActiveExperiment>(`/experiments/${slug}/start/`, { method: 'POST', body: '{}' }),
+    onSuccess: (active) => {
+      queryClient.setQueryData(['active-experiment'], active)
+      setScreen('home')
+    },
+  })
+  if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Loading experiment…</div>
+  if (error || !experiment) return <div style={{ padding: 40, color: C.red }}>This experiment could not be loaded.</div>
+  const tasks = experiment.daily_tasks.slice(0, 3).map((task) => task.instructions)
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -829,16 +909,16 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <div style={{ width: 44, height: 44, borderRadius: 11, background: `${C.purple}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Star size={20} color={C.purple} />
           </div>
-          <Badge label="Creative" color={C.purple} />
+          <Badge label={experiment.category} color={C.purple} />
         </div>
-        <h1 style={{ fontSize: 34, fontWeight: 800, marginBottom: 12, letterSpacing: '-0.025em' }}>Photography Walk</h1>
+        <h1 style={{ fontSize: 34, fontWeight: 800, marginBottom: 12, letterSpacing: '-0.025em' }}>{experiment.title}</h1>
         <p style={{ fontSize: 17, color: C.t2, lineHeight: 1.65, marginBottom: 20 }}>
-          Take focused daily photo walks and discover how visual attention changes the way you experience ordinary environments.
+          {experiment.description}
         </p>
         <div style={{ display: 'flex', gap: 16 }}>
           {[
-            { Icon: Calendar, label: '7 days' },
-            { Icon: Clock, label: '30 min/day' },
+            { Icon: Calendar, label: `${experiment.duration_days} days` },
+            { Icon: Clock, label: `${experiment.minutes_per_day} min/day` },
             { Icon: TrendingUp, label: 'Beginner' },
           ].map(({ Icon, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, color: C.t3 }}>
@@ -884,13 +964,14 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           You can stop at any time. Ending an experiment does not mean you failed — it is still useful evidence.
         </p>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Btn variant="primary" size="lg" onClick={() => setScreen('home')}>
-            Start this experiment
+          <Btn variant="primary" size="lg" disabled={start.isPending} onClick={() => user ? start.mutate() : setScreen('login')}>
+            {start.isPending ? 'Starting…' : 'Start this experiment'}
           </Btn>
           <Btn variant="ghost" size="lg">
             <Bookmark size={16} /> Save for later
           </Btn>
         </div>
+        {start.error && <p role="alert" style={{ color: C.red, marginTop: 12 }}>{start.error.message}</p>}
       </div>
     </div>
   )
@@ -900,6 +981,24 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
+  const [notes, setNotes] = useState('')
+  const { data: active } = useQuery({
+    queryKey: ['active-experiment'],
+    queryFn: () => apiRequest<ActiveExperiment | null>('/user-experiments/active/'),
+  })
+  const submit = useMutation({
+    mutationFn: () => {
+      if (!active) throw new Error('Start an experiment before checking in.')
+      return apiRequest(`/user-experiments/${active.id}/checkins/`, {
+        method: 'POST',
+        body: JSON.stringify({
+          day: 1, energy: answers[2] ?? 3, curiosity: answers[3] ?? 3,
+          meaning: answers[4] ?? 3, difficulty: 6 - (answers[1] ?? 3), notes,
+        }),
+      })
+    },
+    onSuccess: () => setScreen('checkin-done'),
+  })
 
   const questions = [
     { q: 'Did you complete today\'s task?', type: 'yn' },
@@ -926,7 +1025,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         <button onClick={() => setScreen('home')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t3 }}><X size={20} /></button>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.t4 }}>Photography Walk — Day 3</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.t4 }}>{active?.experiment.title ?? 'Active experiment'} — Day 1</span>
             <span style={{ fontSize: 13, color: C.t4 }}>{step + 1}/{total}</span>
           </div>
           <div style={{ height: 4, background: C.s2, borderRadius: 2, overflow: 'hidden' }}>
@@ -985,18 +1084,19 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
         {current.type === 'note' && (
           <div>
-            <textarea placeholder="What stood out today? What surprised you? (optional)" style={{
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="What stood out today? What surprised you? (optional)" style={{
               width: '100%', height: 120, padding: '14px', borderRadius: 12,
               background: C.s1, border: `1px solid ${C.br}`, color: C.t1,
               fontFamily: 'inherit', fontSize: 15, lineHeight: 1.6, resize: 'none', outline: 'none',
               boxSizing: 'border-box',
             }} />
             <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-              <Btn variant="ghost" full onClick={() => setScreen('checkin-done')}>Skip</Btn>
-              <Btn variant="primary" full onClick={() => setScreen('checkin-done')}>
-                <Check size={16} /> Save check-in
+              <Btn variant="ghost" full onClick={() => { setNotes(''); submit.mutate() }}>Skip note</Btn>
+              <Btn variant="primary" full disabled={submit.isPending} onClick={() => submit.mutate()}>
+                <Check size={16} /> {submit.isPending ? 'Saving…' : 'Save check-in'}
               </Btn>
             </div>
+            {submit.error && <p role="alert" style={{ color: C.red }}>{submit.error.message}</p>}
           </div>
         )}
       </div>
@@ -1447,13 +1547,19 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const paths: Record<Screen, string> = {
-    landing: '/', onboarding: '/onboarding', home: '/app', library: '/app/explore',
+    landing: '/', login: '/login', register: '/register', onboarding: '/onboarding', home: '/app', library: '/app/explore',
     detail: '/app/experiments/photography-walk', checkin: '/app/check-in',
     'checkin-done': '/app/check-in/complete', report: '/app/report',
     insights: '/app/insights', vault: '/app/vault', profile: '/app/profile',
   }
-  const screen = (Object.entries(paths).find(([, path]) => path === location.pathname)?.[0] ?? 'landing') as Screen
+  const screen = (location.pathname.startsWith('/app/experiments/') ? 'detail' :
+    Object.entries(paths).find(([, path]) => path === location.pathname)?.[0] ?? 'landing') as Screen
   const setScreen = (next: Screen) => navigate(paths[next])
+  const { data: user, isLoading: authLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => apiRequest<UserData>('/auth/me/'),
+    retry: false,
+  })
 
   const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'report', 'insights', 'vault', 'profile']
   const isAuthenticated = authenticatedScreens.includes(screen)
@@ -1461,6 +1567,8 @@ export default function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'landing':    return <LandingScreen setScreen={setScreen} />
+      case 'login':      return <AuthScreen mode="login" setScreen={setScreen} />
+      case 'register':   return <AuthScreen mode="register" setScreen={setScreen} />
       case 'onboarding': return <OnboardingScreen setScreen={setScreen} />
       case 'checkin':    return <CheckinScreen setScreen={setScreen} />
       case 'checkin-done': return <CheckinDoneScreen setScreen={setScreen} />
@@ -1468,6 +1576,9 @@ export default function App() {
     }
 
     if (isAuthenticated) {
+      const publicBrowse = screen === 'library' || screen === 'detail'
+      if (authLoading && !publicBrowse) return <div style={{ padding: 40, color: C.t3 }}>Restoring your session…</div>
+      if (!user && !publicBrowse) return <AuthScreen mode="login" setScreen={setScreen} />
       const content = (() => {
         switch (screen) {
           case 'home':     return <HomeScreen setScreen={setScreen} />
