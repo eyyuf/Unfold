@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --bg: #09090B;
+  --bg2: #111113;
+  --s1: #18181B;
+  --s2: #27272A;
+  --br: #3F3F46;
+  --t1: #FAFAFA;
+  --t2: #D4D4D8;
+  --t3: #A1A1AA;
+  --t4: #71717A;
+  --acc: #22C55E;
+  --acc-hover: #16A34A;
+  --acc-soft: rgba(34, 197, 94, 0.12);
+  --acc-border: rgba(34, 197, 94, 0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--t1);
+  font-family: 'Manrope', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--br); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--t4); }
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes progressFill {
+  from { width: 0; }
+  to { width: var(--target-width); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.fade-up { animation: fadeSlideUp 0.35s ease both; }
+.pulse-acc { animation: pulse-glow 2.5s ease-in-out infinite; }
