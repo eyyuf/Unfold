@@ -39,7 +39,7 @@ const C = {
   sky:     '#38BDF8',
 }
 
-type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile'
+type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
 type UserData = {
   id: number; email: string; display_name: string; timezone?: string
   reminder_time?: string | null; reminders_enabled?: boolean
@@ -303,17 +303,31 @@ function AppShell({ screen, setScreen, children }: {
 
         {/* Bottom sidebar links */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, paddingTop: 12, borderTop: `1px solid ${C.br}` }}>
-          {[{ Icon: Settings, label: 'Settings' }, { Icon: HelpCircle, label: 'Help' }].map(({ Icon, label }) => (
-            <button key={label} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-              borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-              fontSize: 13, fontWeight: 500, background: 'transparent', color: C.t4,
-              transition: 'all 0.15s',
-            }}>
-              <Icon size={15} />
-              {label}
-            </button>
-          ))}
+          {([
+            { id: 'profile', Icon: Settings, label: 'Settings' },
+            { id: 'help', Icon: HelpCircle, label: 'Help' },
+          ] as const).map(({ id, Icon, label }) => {
+            const active = screen === id
+            return (
+              <button
+                key={id}
+                onClick={() => setScreen(id)}
+                aria-current={active ? 'page' : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                  borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  background: active ? C.accS : 'transparent', color: active ? C.acc : C.t4,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={event => { if (!active) event.currentTarget.style.background = C.s1 }}
+                onMouseLeave={event => { if (!active) event.currentTarget.style.background = 'transparent' }}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            )
+          })}
         </div>
       </aside>
 
@@ -1585,6 +1599,74 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   )
 }
 
+// ─── SCREEN: Help ─────────────────────────────────────────────────────────────
+function HelpScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const faqs = [
+    {
+      question: 'What does my fit signal mean?',
+      answer: 'It summarizes the evidence in your check-ins, completion pattern, and final reflection. It is a personal signal—not a test result or diagnosis.',
+    },
+    {
+      question: 'Why can a fit signal be lower even when I choose 5?',
+      answer: 'Daily ratings are only one part of the result. Completion consistency and the final reflection also contribute, so missed days or a lower reflection response can reduce the overall signal.',
+    },
+    {
+      question: 'Can I stop or try a different experiment?',
+      answer: 'Yes. You can return to Explore at any time and choose an experiment that feels more useful. Your completed evidence stays in the Evidence vault.',
+    },
+  ]
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px 56px' }} className="fade-up">
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: C.acc, fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+          <HelpCircle size={17} /> HELP CENTER
+        </div>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8 }}>How can we help?</h1>
+        <p style={{ color: C.t3, lineHeight: 1.6, margin: 0 }}>A quick guide to experiments, check-ins, and your evidence.</p>
+      </div>
+
+      <Card style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18 }}>How Unfold works</h2>
+        <div style={{ display: 'grid', gap: 16 }}>
+          {[
+            ['1', 'Choose an experiment', 'Pick a small, time-limited activity that you are curious to try.'],
+            ['2', 'Check in honestly', 'Record what you actually experienced each day. There are no right answers.'],
+            ['3', 'Review your evidence', 'Use the final reflection and fit signal to decide what you want to explore next.'],
+          ].map(([number, title, description]) => (
+            <div key={number} style={{ display: 'flex', gap: 14 }}>
+              <div style={{ width: 28, height: 28, flex: '0 0 28px', borderRadius: '50%', background: C.accS, color: C.acc, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{number}</div>
+              <div>
+                <div style={{ color: C.t1, fontWeight: 700, marginBottom: 3 }}>{title}</div>
+                <div style={{ color: C.t3, fontSize: 14, lineHeight: 1.55 }}>{description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 4 }}>Common questions</h2>
+        {faqs.map(({ question, answer }) => (
+          <div key={question} style={{ padding: '16px 0', borderBottom: `1px solid ${C.br}` }}>
+            <div style={{ color: C.t1, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{question}</div>
+            <div style={{ color: C.t3, fontSize: 14, lineHeight: 1.6 }}>{answer}</div>
+          </div>
+        ))}
+      </Card>
+
+      <Card>
+        <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Still need help?</h2>
+        <p style={{ color: C.t3, fontSize: 14, lineHeight: 1.6, margin: '0 0 16px' }}>Review your settings or return to the experiment library to continue exploring.</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <Btn size="sm" onClick={() => setScreen('library')}>Explore experiments</Btn>
+          <Btn size="sm" variant="secondary" onClick={() => setScreen('profile')}>Open settings</Btn>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ─── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const navigate = useNavigate()
@@ -1593,7 +1675,7 @@ export default function App() {
     landing: '/', login: '/login', register: '/register', onboarding: '/onboarding', home: '/app', library: '/app/explore',
     detail: '/app/experiments/photography-walk', checkin: '/app/check-in',
     'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
-    insights: '/app/insights', vault: '/app/vault', profile: '/app/profile',
+    insights: '/app/insights', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
   }
   const screen = (location.pathname.startsWith('/app/experiments/') ? 'detail' :
     Object.entries(paths).find(([, path]) => path === location.pathname)?.[0] ?? 'landing') as Screen
@@ -1604,7 +1686,7 @@ export default function App() {
     retry: false,
   })
 
-  const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'report', 'insights', 'vault', 'profile']
+  const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'report', 'insights', 'vault', 'profile', 'help']
   const isAuthenticated = authenticatedScreens.includes(screen)
 
   const renderScreen = () => {
@@ -1632,6 +1714,7 @@ export default function App() {
           case 'insights': return <InsightsScreen setScreen={setScreen} />
           case 'vault':    return <VaultScreen setScreen={setScreen} />
           case 'profile':  return <ProfileScreen setScreen={setScreen} />
+          case 'help':     return <HelpScreen setScreen={setScreen} />
           default:         return null
         }
       })()
