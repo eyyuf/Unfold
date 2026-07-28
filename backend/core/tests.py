@@ -19,6 +19,17 @@ class ApiFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["slug"], "photography-walk")
 
+    def test_user_endpoints_reject_anonymous_requests_without_server_errors(self):
+        for path in (
+            "/api/v1/auth/me/",
+            "/api/v1/user-experiments/active/",
+            "/api/v1/evidence-vault/",
+            "/api/v1/insights/",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertIn(response.status_code, (401, 403))
+
     def test_authenticated_user_can_start_experiment_and_check_in(self):
         user = User.objects.create_user("person@example.com", "a-secure-password")
         self.client.force_authenticate(user)
