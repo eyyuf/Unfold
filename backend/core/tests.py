@@ -93,4 +93,56 @@ class ApiFlowTests(TestCase):
         self.assertEqual(profile.data["display_name"], "Ari")
         self.assertTrue(profile.data["reminders_enabled"])
 
+    def test_user_can_save_and_remove_an_experiment(self):
+        user = User.objects.create_user("saved@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+
+        saved = self.client.post("/api/v1/experiments/photography-walk/save/", {}, format="json")
+        self.assertEqual(saved.status_code, 201)
+        library = self.client.get("/api/v1/saved-experiments/")
+        self.assertEqual(len(library.data), 1)
+        self.assertEqual(library.data[0]["experiment"]["slug"], "photography-walk")
+
+        removed = self.client.delete("/api/v1/experiments/photography-walk/save/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(self.client.get("/api/v1/saved-experiments/").data, [])
+
+    def test_commitment_preferences_and_abandonment_are_saved(self):
+        user = User.objects.create_user("plan@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        started = self.client.post(
+            "/api/v1/experiments/photography-walk/start/",
+            {
+                "start_date": "2026-08-01",
+                "reason": "I want to notice more.",
+                "reminders_enabled": True,
+                "reminder_time": "18:45",
+            },
+            format="json",
+        )
+        self.assertEqual(started.status_code, 201)
+        self.assertEqual(started.data["reason"], "I want to notice more.")
+        user.refresh_from_db()
+        self.assertTrue(user.reminders_enabled)
+        self.assertEqual(user.reminder_time.strftime("%H:%M"), "18:45")
+
+        abandoned = self.client.post(f"/api/v1/user-experiments/{started.data['id']}/abandon/")
+        self.assertEqual(abandoned.status_code, 200)
+        self.assertEqual(abandoned.data["status"], "abandoned")
+        self.assertIsNone(self.client.get("/api/v1/user-experiments/active/").json())
+
+    def test_report_endpoint_returns_the_requested_experiment(self):
+        user = User.objects.create_user("reports@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        first = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        self.client.post(
+            f"/api/v1/user-experiments/{first.data['id']}/final-reflection/",
+            {"repeat_intent": 4, "summary": "First report"},
+            format="json",
+        )
+        requested = self.client.get(f"/api/v1/user-experiments/{first.data['id']}/report/")
+        self.assertEqual(requested.status_code, 200)
+        self.assertEqual(requested.data["id"], first.data["id"])
+        self.assertEqual(requested.data["summary"], "First report")
+
 # Create your tests here.

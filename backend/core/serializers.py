@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate
 from rest_framework import serializers
 from accounts.models import User
 from checkins.models import CheckIn, FinalReflection
-from experiments.models import DailyTask, Experiment, UserExperiment
+from experiments.models import DailyTask, Experiment, SavedExperiment, UserExperiment
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=False)
@@ -32,6 +32,14 @@ class ExperimentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Experiment
         fields = ["id", "category", "title", "slug", "description", "duration_days", "minutes_per_day", "daily_tasks"]
+
+
+class SavedExperimentSerializer(serializers.ModelSerializer):
+    experiment = ExperimentSerializer(read_only=True)
+
+    class Meta:
+        model = SavedExperiment
+        fields = ["id", "experiment", "created_at"]
 
 class UserExperimentSerializer(serializers.ModelSerializer):
     experiment = ExperimentSerializer(read_only=True)

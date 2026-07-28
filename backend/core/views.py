@@ -7,8 +7,8 @@ from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from checkins.models import CheckIn, FinalReflection
-from experiments.models import Experiment, UserExperiment
-from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, UserExperimentSerializer, UserSerializer
+from experiments.models import Experiment, SavedExperiment, UserExperiment
+from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
@@ -84,7 +84,33 @@ def start_experiment(request, slug):
     active, created = UserExperiment.objects.get_or_create(
         user=request.user, experiment=experiment, status="active",
         defaults={"start_date": request.data.get("start_date", timezone.localdate()), "reason": request.data.get("reason", "")})
+    if created:
+        profile_updates = []
+        if "reminder_time" in request.data:
+            request.user.reminder_time = request.data["reminder_time"] or None
+            profile_updates.append("reminder_time")
+        if "reminders_enabled" in request.data:
+            request.user.reminders_enabled = bool(request.data["reminders_enabled"])
+            profile_updates.append("reminders_enabled")
+        if profile_updates:
+            request.user.save(update_fields=profile_updates)
     return Response(UserExperimentSerializer(active).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def saved_experiments(request):
+    items = SavedExperiment.objects.filter(user=request.user).select_related("experiment__category").prefetch_related("experiment__daily_tasks")
+    return Response(SavedExperimentSerializer(items, many=True).data)
+
+
+@api_view(["POST", "DELETE"])
+def toggle_saved_experiment(request, slug):
+    experiment = get_object_or_404(Experiment, slug=slug, published=True)
+    if request.method == "DELETE":
+        SavedExperiment.objects.filter(user=request.user, experiment=experiment).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    saved, created = SavedExperiment.objects.get_or_create(user=request.user, experiment=experiment)
+    return Response(SavedExperimentSerializer(saved).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 @api_view(["GET"])
 def active_experiment(request):
@@ -92,6 +118,14 @@ def active_experiment(request):
     if not item:
         return JsonResponse(None, safe=False)
     return Response(UserExperimentSerializer(item).data)
+
+
+@api_view(["POST"])
+def abandon_experiment(request, pk):
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
+    item.status = "abandoned"
+    item.save(update_fields=["status"])
+    return Response(report_for(item))
 
 @api_view(["POST"])
 def submit_checkin(request, pk):
@@ -115,7 +149,7 @@ def final_reflection(request, pk):
 
 @api_view(["GET"])
 def evidence_vault(request):
-    items = UserExperiment.objects.filter(user=request.user).exclude(status="active").select_related("experiment__category")
+    items = UserExperiment.objects.filter(user=request.user).exclude(status="active").select_related("experiment__category").order_by("-created_at")
     return Response([report_for(item) for item in items])
 
 

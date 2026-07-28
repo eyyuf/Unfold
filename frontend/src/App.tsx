@@ -39,7 +39,7 @@ const C = {
   sky:     '#38BDF8',
 }
 
-type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
+type Screen = 'landing' | 'login' | 'register' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
 type UserData = {
   id: number; email: string; display_name: string; timezone?: string
   reminder_time?: string | null; reminders_enabled?: boolean
@@ -57,6 +57,9 @@ type ActiveExperiment = {
 type ExperimentReport = {
   id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
   fit_signal: number; strongest_signal: string; dimensions: Record<string, number>; summary: string
+}
+type SavedExperimentData = {
+  id: number; experiment: ExperimentData; created_at: string
 }
 
 function useActiveExperiment() {
@@ -678,7 +681,19 @@ function OnboardingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 // ─── SCREEN: Home ─────────────────────────────────────────────────────────────
 function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const { data: active, isPending, isFetching, isError } = useActiveExperiment()
-  const user = useQueryClient().getQueryData<UserData>(['me'])
+  const queryClient = useQueryClient()
+  const user = queryClient.getQueryData<UserData>(['me'])
+  const abandon = useMutation({
+    mutationFn: () => {
+      if (!active) throw new Error('No active experiment found.')
+      return apiRequest(`/user-experiments/${active.id}/abandon/`, { method: 'POST' })
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['active-experiment'], null)
+      queryClient.invalidateQueries({ queryKey: ['evidence-vault'] })
+      setScreen('vault')
+    },
+  })
   if (isPending) return <div style={{ padding: 40, color: C.t3 }}>Loading your experiment…</div>
   if (isError) return <div style={{ padding: 40, color: C.red }}>Your experiment could not be loaded. Please try again.</div>
   if (!active) return (
@@ -760,6 +775,12 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <Play size={16} />
           Begin today's task
         </Btn>
+        <button disabled={abandon.isPending} onClick={() => {
+          if (window.confirm('End this experiment early? Your existing check-ins will remain in your Evidence Vault.')) abandon.mutate()
+        }} style={{ width: '100%', marginTop: 12, border: 0, background: 'none', color: C.t4, cursor: 'pointer', font: 'inherit', fontSize: 13 }}>
+          {abandon.isPending ? 'Ending experiment…' : 'End experiment early'}
+        </button>
+        {abandon.error && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{abandon.error.message}</p>}
       </div>
 
       {/* Recent evidence */}
@@ -803,10 +824,12 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 }
 
 // ─── SCREEN: Library ─────────────────────────────────────────────────────────
-function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
+function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [activeFilter, setActiveFilter] = useState('All')
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const user = queryClient.getQueryData<UserData | null>(['me'])
 
   const filters = [
     { label: 'All', color: C.t1 },
@@ -825,6 +848,24 @@ function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => vo
       ...(search ? { search } : {}),
     })}`),
   })
+  const { data: savedItems = [] } = useQuery({
+    queryKey: ['saved-experiments'],
+    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+    enabled: Boolean(user),
+  })
+  const savedSlugs = new Set(savedItems.map((item) => item.experiment.slug))
+  const saveExperiment = useMutation({
+    mutationFn: ({ slug, saved }: { slug: string; saved: boolean }) => apiRequest(`/experiments/${slug}/save/`, { method: saved ? 'DELETE' : 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
+  })
+  const toggleSave = (event: React.MouseEvent, slug: string) => {
+    event.stopPropagation()
+    if (!user) {
+      setScreen('login')
+      return
+    }
+    saveExperiment.mutate({ slug, saved: savedSlugs.has(slug) })
+  }
   const categoryStyle: Record<string, { color: string; Icon: React.ElementType }> = {
     Creative: { color: C.purple, Icon: Star }, Technical: { color: C.blue, Icon: Brain },
     Social: { color: C.orange, Icon: Users }, Nature: { color: C.acc, Icon: Leaf },
@@ -840,9 +881,12 @@ function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => vo
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Explore experiments</h1>
-        <p style={{ fontSize: 15, color: C.t3 }}>Pick one that feels worth exploring. You can always try another after.</p>
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Explore experiments</h1>
+          <p style={{ fontSize: 15, color: C.t3 }}>Pick one that feels worth exploring. You can always try another after.</p>
+        </div>
+        {user && <Btn variant="ghost" size="sm" onClick={() => setScreen('saved')}><Bookmark size={15} /> Saved</Btn>}
       </div>
 
       {/* Search */}
@@ -881,7 +925,7 @@ function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => vo
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><Bookmark size={15} /></button>
+                 <button aria-label={`${savedSlugs.has(slug) ? 'Remove' : 'Save'} ${title}`} onClick={(event) => toggleSave(event, slug)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: savedSlugs.has(slug) ? C.acc : C.t4 }}><Bookmark size={15} fill={savedSlugs.has(slug) ? 'currentColor' : 'none'} /></button>
               </div>
               {badge && <div style={{ fontSize: 11, fontWeight: 700, color: C.acc, marginBottom: 6, letterSpacing: '0.04em' }}>✦ {badge.toUpperCase()}</div>}
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, lineHeight: 1.3 }}>{title}</h3>
@@ -912,7 +956,7 @@ function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => vo
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><Bookmark size={15} /></button>
+                <button aria-label={`${savedSlugs.has(slug) ? 'Remove' : 'Save'} ${title}`} onClick={(event) => toggleSave(event, slug)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: savedSlugs.has(slug) ? C.acc : C.t4 }}><Bookmark size={15} fill={savedSlugs.has(slug) ? 'currentColor' : 'none'} /></button>
               </div>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, lineHeight: 1.3 }}>{title}</h3>
               <p style={{ fontSize: 13, color: C.t3, lineHeight: 1.55, marginBottom: 14 }}>{desc}</p>
@@ -926,20 +970,71 @@ function LibraryScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => vo
 }
 
 // ─── SCREEN: Experiment Detail ────────────────────────────────────────────────
+function SavedExperimentsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { data: items = [], isLoading, error } = useQuery({
+    queryKey: ['saved-experiments'],
+    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+  })
+  const remove = useMutation({
+    mutationFn: (slug: string) => apiRequest(`/experiments/${slug}/save/`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
+  })
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
+      <button onClick={() => setScreen('library')} style={{ display: 'flex', gap: 6, alignItems: 'center', border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24 }}>
+        <ChevronLeft size={16} /> Back to Explore
+      </button>
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6 }}>Saved experiments</h1>
+      <p style={{ color: C.t3, marginBottom: 28 }}>Ideas you want to return to later.</p>
+      {isLoading && <p style={{ color: C.t3 }}>Loading saved experiments…</p>}
+      {error && <p role="alert" style={{ color: C.red }}>Saved experiments could not be loaded.</p>}
+      {!isLoading && !items.length && <Card style={{ textAlign: 'center', padding: 32 }}>
+        <Bookmark size={26} color={C.t4} />
+        <h2 style={{ fontSize: 18, margin: '12px 0 6px' }}>Nothing saved yet</h2>
+        <p style={{ color: C.t3, marginBottom: 18 }}>Bookmark an experiment while browsing to keep it here.</p>
+        <Btn onClick={() => setScreen('library')}>Explore experiments</Btn>
+      </Card>}
+      <div style={{ display: 'grid', gap: 14 }}>
+        {items.map(({ experiment }) => (
+          <Card key={experiment.slug} onClick={() => navigate(`/app/experiments/${experiment.slug}`)}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <Badge label={experiment.category} color={C.purple} />
+                <h2 style={{ fontSize: 17, margin: '10px 0 6px' }}>{experiment.title}</h2>
+                <p style={{ color: C.t3, fontSize: 14, margin: 0 }}>{experiment.duration_days} days · {experiment.minutes_per_day} min/day</p>
+              </div>
+              <button aria-label={`Remove ${experiment.title} from saved experiments`} onClick={(event) => { event.stopPropagation(); remove.mutate(experiment.slug) }} style={{ border: 0, background: 'none', color: C.acc, cursor: 'pointer', alignSelf: 'flex-start' }}>
+                <Bookmark size={18} fill="currentColor" />
+              </button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const slug = useLocation().pathname.split('/').pop() ?? ''
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const user = queryClient.getQueryData<UserData>(['me'])
   const { data: experiment, isLoading, error } = useQuery({
     queryKey: ['experiment', slug],
     queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
   })
-  const start = useMutation({
-    mutationFn: () => apiRequest<ActiveExperiment>(`/experiments/${slug}/start/`, { method: 'POST', body: '{}' }),
-    onSuccess: (active) => {
-      queryClient.setQueryData(['active-experiment'], active)
-      setScreen('home')
-    },
+  const { data: savedItems = [] } = useQuery({
+    queryKey: ['saved-experiments'],
+    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+    enabled: Boolean(user),
+  })
+  const isSaved = savedItems.some((item) => item.experiment.slug === slug)
+  const saveExperiment = useMutation({
+    mutationFn: () => apiRequest(`/experiments/${slug}/save/`, { method: isSaved ? 'DELETE' : 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
   })
   if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Loading experiment…</div>
   if (error || !experiment) return <div style={{ padding: 40, color: C.red }}>This experiment could not be loaded.</div>
@@ -1013,20 +1108,88 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           You can stop at any time. Ending an experiment does not mean you failed — it is still useful evidence.
         </p>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Btn variant="primary" size="lg" disabled={start.isPending} onClick={() => user ? start.mutate() : setScreen('login')}>
-            {start.isPending ? 'Starting…' : 'Start this experiment'}
+          <Btn variant="primary" size="lg" onClick={() => user ? navigate(`/app/experiments/${slug}/commit`) : setScreen('login')}>
+            Plan this experiment
           </Btn>
-          <Btn variant="ghost" size="lg">
-            <Bookmark size={16} /> Save for later
+          <Btn variant="ghost" size="lg" disabled={saveExperiment.isPending} onClick={() => user ? saveExperiment.mutate() : setScreen('login')}>
+            <Bookmark size={16} fill={isSaved ? 'currentColor' : 'none'} /> {isSaved ? 'Saved' : 'Save for later'}
           </Btn>
         </div>
-        {start.error && <p role="alert" style={{ color: C.red, marginTop: 12 }}>{start.error.message}</p>}
+        {saveExperiment.error && <p role="alert" style={{ color: C.red, marginTop: 12 }}>{saveExperiment.error.message}</p>}
       </div>
     </div>
   )
 }
 
 // ─── SCREEN: Daily Check-in ───────────────────────────────────────────────────
+function CommitmentScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const slug = location.pathname.split('/').filter(Boolean).at(-2) ?? ''
+  const user = queryClient.getQueryData<UserData>(['me'])
+  const today = (() => {
+    const today = new Date()
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  })()
+  const [startDate, setStartDate] = useState(today)
+  const [reason, setReason] = useState('')
+  const [remindersEnabled, setRemindersEnabled] = useState(Boolean(user?.reminders_enabled))
+  const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
+  const { data: experiment, isLoading } = useQuery({
+    queryKey: ['experiment', slug],
+    queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
+  })
+  const start = useMutation({
+    mutationFn: () => apiRequest<ActiveExperiment>(`/experiments/${slug}/start/`, {
+      method: 'POST',
+      body: JSON.stringify({ start_date: startDate, reason, reminders_enabled: remindersEnabled, reminder_time: reminderTime }),
+    }),
+    onSuccess: (active) => {
+      queryClient.setQueryData(['active-experiment'], active)
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+      setScreen('home')
+    },
+  })
+
+  if (isLoading || !experiment) return <div style={{ padding: 40, color: C.t3 }}>Preparing your experiment…</div>
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card style={{ width: '100%', maxWidth: 580, padding: 32 }} accent>
+        <button onClick={() => navigate(`/app/experiments/${slug}`)} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 22, display: 'flex', gap: 5 }}>
+          <ChevronLeft size={16} /> Back
+        </button>
+        <Badge label="Make it practical" color={C.acc} />
+        <h1 style={{ fontSize: 28, margin: '18px 0 8px' }}>Plan {experiment.title}</h1>
+        <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 24 }}>A simple plan makes it easier to notice what the experience actually feels like.</p>
+
+        <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 18 }}>
+          <span style={{ display: 'block', marginBottom: 7 }}>Start date</span>
+          <input type="date" min={today} value={startDate} onChange={(event) => setStartDate(event.target.value)} style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit', boxSizing: 'border-box' }} />
+        </label>
+        <label style={{ display: 'block', color: C.t2, fontSize: 14, marginBottom: 18 }}>
+          <span style={{ display: 'block', marginBottom: 7 }}>Why are you trying this? <span style={{ color: C.t4 }}>(optional)</span></span>
+          <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="I want to see whether…" style={{ width: '100%', minHeight: 90, background: C.s2, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
+        </label>
+        <div style={{ padding: 16, background: C.s2, borderRadius: 12, marginBottom: 20 }}>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: C.t2, fontSize: 14, marginBottom: remindersEnabled ? 14 : 0 }}>
+            Email reminder
+            <input type="checkbox" checked={remindersEnabled} onChange={(event) => setRemindersEnabled(event.target.checked)} />
+          </label>
+          {remindersEnabled && <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: C.t2, fontSize: 14 }}>
+            Preferred time
+            <input type="time" value={reminderTime} onChange={(event) => setReminderTime(event.target.value)} style={{ background: C.s1, color: C.t1, border: `1px solid ${C.br}`, borderRadius: 8, padding: 8 }} />
+          </label>}
+        </div>
+        <p style={{ color: C.t4, fontSize: 13, lineHeight: 1.55, marginBottom: 20 }}>If it is {reminderTime}, you will spend {experiment.minutes_per_day} minutes on this experiment. Timezone: {user?.timezone ?? 'Africa/Nairobi'}.</p>
+        {start.error && <p role="alert" style={{ color: C.red }}>{start.error.message}</p>}
+        <Btn full size="lg" disabled={start.isPending || !startDate} onClick={() => start.mutate()}>{start.isPending ? 'Starting…' : 'Start experiment'}</Btn>
+      </Card>
+    </div>
+  )
+}
+
 function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
@@ -1211,6 +1374,7 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [repeatIntent, setRepeatIntent] = useState(4)
   const [summary, setSummary] = useState('')
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: active } = useActiveExperiment()
   const submit = useMutation({
@@ -1221,9 +1385,11 @@ function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }
       })
     },
     onSuccess: () => {
+      const completedId = active?.id
       queryClient.setQueryData(['active-experiment'], null)
       queryClient.invalidateQueries({ queryKey: ['evidence-vault'] })
-      setScreen('report')
+      if (completedId) navigate(`/app/reports/${completedId}`)
+      else setScreen('report')
     },
   })
   return (
@@ -1246,12 +1412,18 @@ function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }
 
 // ─── SCREEN: Experiment Report ─────────────────────────────────────────────
 function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const { data: reports = [], isLoading } = useQuery({
-    queryKey: ['evidence-vault'],
-    queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
+  const location = useLocation()
+  const reportId = location.pathname.startsWith('/app/reports/') ? location.pathname.split('/').pop() : undefined
+  const { data: report, isLoading, error } = useQuery({
+    queryKey: ['experiment-report', reportId ?? 'latest'],
+    queryFn: async () => {
+      if (reportId) return apiRequest<ExperimentReport>(`/user-experiments/${reportId}/report/`)
+      const reports = await apiRequest<ExperimentReport[]>('/evidence-vault/')
+      return reports[0] ?? null
+    },
   })
   if (isLoading) return <div style={{ padding: 40, color: C.t3 }}>Building your report…</div>
-  const report = reports[0]
+  if (error) return <div role="alert" style={{ padding: 40, color: C.red }}>This report could not be loaded. Please try again.</div>
   if (!report) return <div style={{ padding: 40, color: C.t3 }}>Complete an experiment to see your first report.</div>
   const dims = Object.entries(report.dimensions).map(([l, v]) => ({ l, v }))
 
@@ -1432,7 +1604,8 @@ function InsightsScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => v
 }
 
 // ─── SCREEN: Evidence Vault ───────────────────────────────────────────────────
-function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
+  const navigate = useNavigate()
   const { data: entries = [] } = useQuery({
     queryKey: ['evidence-vault'],
     queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
@@ -1464,7 +1637,7 @@ function VaultScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Entries */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {entries.map((entry) => (
-          <Card key={entry.id} onClick={() => setScreen('report')} style={{ cursor: 'pointer' }}>
+          <Card key={entry.id} onClick={() => navigate(`/app/reports/${entry.id}`)} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <Badge label={entry.experiment.category} color={C.purple} />
@@ -1673,11 +1846,13 @@ export default function App() {
   const location = useLocation()
   const paths: Record<Screen, string> = {
     landing: '/', login: '/login', register: '/register', onboarding: '/onboarding', home: '/app', library: '/app/explore',
-    detail: '/app/experiments/photography-walk', checkin: '/app/check-in',
+    detail: '/app/experiments/photography-walk', commit: '/app/experiments/photography-walk/commit', saved: '/app/saved', checkin: '/app/check-in',
     'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
     insights: '/app/insights', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
   }
-  const screen = (location.pathname.startsWith('/app/experiments/') ? 'detail' :
+  const screen = (location.pathname.startsWith('/app/reports/') ? 'report' :
+    location.pathname.endsWith('/commit') && location.pathname.startsWith('/app/experiments/') ? 'commit' :
+    location.pathname.startsWith('/app/experiments/') ? 'detail' :
     Object.entries(paths).find(([, path]) => path === location.pathname)?.[0] ?? 'landing') as Screen
   const setScreen = (next: Screen) => navigate(paths[next])
   const { data: user, isLoading: authLoading } = useQuery({
@@ -1686,7 +1861,7 @@ export default function App() {
     retry: false,
   })
 
-  const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'report', 'insights', 'vault', 'profile', 'help']
+  const authenticatedScreens: Screen[] = ['home', 'library', 'detail', 'commit', 'saved', 'report', 'insights', 'vault', 'profile', 'help']
   const isAuthenticated = authenticatedScreens.includes(screen)
 
   const renderScreen = () => {
@@ -1710,6 +1885,8 @@ export default function App() {
           case 'home':     return <HomeScreen setScreen={setScreen} />
           case 'library':  return <LibraryScreen setScreen={setScreen} />
           case 'detail':   return <DetailScreen setScreen={setScreen} />
+          case 'commit':   return <CommitmentScreen setScreen={setScreen} />
+          case 'saved':    return <SavedExperimentsScreen setScreen={setScreen} />
           case 'report':   return <ReportScreen setScreen={setScreen} />
           case 'insights': return <InsightsScreen setScreen={setScreen} />
           case 'vault':    return <VaultScreen setScreen={setScreen} />
