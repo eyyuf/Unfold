@@ -760,21 +760,36 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           </div>
         </div>
 
-        {/* Constellation hero visual */}
+        {/* Constellation hero visual with generated artwork */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
           <div style={{
             position: 'relative', width: 480, height: 320,
-            background: `radial-gradient(ellipse at 40% 40%, rgba(34,197,94,0.06) 0%, transparent 65%)`,
-            borderRadius: 24, border: `1px solid ${C.br}`, overflow: 'hidden',
+            borderRadius: 20, border: `1px solid ${C.accB}`, overflow: 'hidden',
+            boxShadow: 'var(--shadow-md)',
           }}>
-            <Constellation w={480} h={320} />
+            <img
+              src="/landing_hero_artwork.jpg"
+              alt="Serene journey visual showing quiet landscape and stars"
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover',
+                filter: 'brightness(0.9) contrast(1.05)',
+                transition: 'transform 0.5s ease',
+              }}
+            />
             <div style={{
-              position: 'absolute', bottom: 20, left: 20, right: 20,
-              background: C.s1, borderRadius: 12, padding: '12px 16px',
-              border: `1px solid ${C.br}`, backdropFilter: 'blur(8px)',
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to top, rgba(23,26,23,0.7) 0%, transparent 60%)',
+            }} />
+            <div style={{
+              position: 'absolute', bottom: 16, left: 16, right: 16,
+              background: 'rgba(34, 39, 34, 0.85)', borderRadius: 14, padding: '14px 18px',
+              border: `1px solid ${C.accB}`, backdropFilter: 'blur(10px)',
             }}>
-              <div style={{ fontSize: 12, color: C.t4, marginBottom: 4 }}>Evidence forming</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.t1 }}>Photography Walk — Day 3 of 7</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.05em' }}>✦ EVIDENCE FORMING</span>
+                <span style={{ fontSize: 12, color: C.t3 }}>Day 3 of 7</span>
+              </div>
+              <div className="font-serif" style={{ fontSize: 16, color: '#F1F0E9', marginBottom: 8 }}>Photography Walk</div>
               <ProgressBar value={3} max={7} />
             </div>
           </div>
