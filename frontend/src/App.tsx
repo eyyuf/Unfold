@@ -25,19 +25,21 @@ const C = {
   t1:      'var(--t1)',
   t2:      'var(--t2)',
   t3:      'var(--t3)',
-  t4:      '#8A8A94',
-  acc:     '#22C55E',
-  accH:    '#16A34A',
-  accS:    'rgba(34,197,94,0.12)',
-  accB:    'rgba(34,197,94,0.28)',
-  purple:  '#8B5CF6',
-  blue:    '#3B82F6',
-  orange:  '#FB923C',
-  teal:    '#14B8A6',
-  amber:   '#F59E0B',
-  indigo:  '#6366F1',
-  red:     '#EF4444',
-  sky:     '#38BDF8',
+  t4:      'var(--t4)',
+  acc:     'var(--acc)',
+  accH:    'var(--acc-hover)',
+  accS:    'var(--acc-soft)',
+  accB:    'var(--acc-border)',
+  gold:    'var(--gold)',
+  goldS:   'var(--gold-soft)',
+  purple:  '#827397',
+  blue:    '#607080',
+  orange:  '#A27B66',
+  teal:    '#5D827B',
+  amber:   '#A88554',
+  indigo:  '#667085',
+  red:     '#B55F5F',
+  sky:     '#5B7B88',
 }
 
 // ─── Toast system ────────────────────────────────────────────────────────────
@@ -238,22 +240,22 @@ function Btn({
 }) {
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    fontFamily: 'inherit', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
-    border: 'none', borderRadius: 10, transition: 'all 0.15s',
+    fontFamily: 'var(--font-sans)', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
+    border: 'none', borderRadius: 11, transition: 'all 0.18s cubic-bezier(0.22, 1, 0.36, 1)',
     width: full ? '100%' : undefined, opacity: disabled ? 0.45 : 1,
-    letterSpacing: '0.01em',
+    letterSpacing: '0.005em',
   }
-  const sizes = { sm: { padding: '8px 14px', fontSize: 13 }, md: { padding: '11px 20px', fontSize: 15 }, lg: { padding: '14px 28px', fontSize: 16 } }
+  const sizes = { sm: { padding: '7px 13px', fontSize: 13 }, md: { padding: '10px 18px', fontSize: 14 }, lg: { padding: '13px 24px', fontSize: 15 } }
   const variants: Record<string, React.CSSProperties> = {
-    primary:   { background: C.acc, color: '#052e16' },
+    primary:   { background: C.acc, color: '#FAF9F5' },
     secondary: { background: C.s2, color: C.t1, border: `1px solid ${C.br}` },
     ghost:     { background: 'transparent', color: C.t2, border: `1px solid ${C.br}` },
-    danger:    { background: 'rgba(239,68,68,0.1)', color: C.red, border: `1px solid rgba(239,68,68,0.3)` },
+    danger:    { background: 'rgba(181,95,95,0.1)', color: C.red, border: `1px solid rgba(181,95,95,0.3)` },
   }
   return (
     <button className="press-active" style={{ ...base, ...sizes[size], ...variants[variant] }} onClick={onClick} disabled={disabled}
-      onMouseEnter={e => { if (!disabled) (e.currentTarget.style.filter = 'brightness(1.1)') }}
-      onMouseLeave={e => { e.currentTarget.style.filter = '' }}>
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.filter = 'brightness(1.05)' } }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.filter = '' }}>
       {children}
     </button>
   )
@@ -269,16 +271,17 @@ function LoadingBlock({ label }: { label: string }) {
 
 function ErrorBlock({ message, onRetry }: { message: string; onRetry: () => void }) {
   return <div role="alert" style={{ maxWidth: 560, margin: '70px auto', padding: 24, textAlign: 'center' }}>
-    <h2 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h2>
+    <h2 className="font-serif" style={{ fontSize: 24, marginBottom: 8 }}>Something went wrong</h2>
     <p style={{ color: C.t3, marginBottom: 18 }}>{message} Your data was not deleted.</p>
     <Btn onClick={onRetry}>Try again</Btn>
   </div>
 }
 
 function EmptyState({ title, copy, action, onAction }: { title: string; copy: string; action: string; onAction: () => void }) {
-  return <div style={{ maxWidth: 580, margin: '70px auto', padding: 24, textAlign: 'center' }}>
-    <h1 style={{ fontSize: 24, marginBottom: 8 }}>{title}</h1>
-    <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 20 }}>{copy}</p>
+  return <div style={{ maxWidth: 580, margin: '70px auto', padding: 32, textAlign: 'center' }}>
+    <div style={{ fontSize: 20, color: C.gold, marginBottom: 12 }}>✦</div>
+    <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>{title}</h1>
+    <p style={{ color: C.t3, lineHeight: 1.65, marginBottom: 24, fontSize: 15 }}>{copy}</p>
     <Btn onClick={onAction}>{action}</Btn>
   </div>
 }
@@ -287,20 +290,16 @@ function Card({ children, style, onClick, accent = false, className = '' }: {
   children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void; accent?: boolean; className?: string
 }) {
   const base: React.CSSProperties = {
-    background: C.s1, borderRadius: 16, padding: '20px 24px',
+    background: C.s1, borderRadius: 16, padding: '22px 24px',
     border: accent ? `1px solid ${C.accB}` : `1px solid ${C.br}`,
-    boxShadow: accent
-      ? `0 0 0 1px ${C.accB}, 0 12px 30px rgba(34,197,94,0.07)`
-      : '0 8px 24px rgba(0,0,0,0.2)',
+    boxShadow: 'var(--shadow-sm)',
     cursor: onClick ? 'pointer' : undefined,
-    transition: 'all 0.18s',
+    transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease',
     ...style,
   }
   const combinedClass = [onClick ? 'card-hover' : '', className].filter(Boolean).join(' ')
   return (
-    <div className={combinedClass || undefined} style={base} onClick={onClick}
-      onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = C.br.replace('46','56') } }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderColor = accent ? C.accB : C.br }}>
+    <div className={combinedClass || undefined} style={base} onClick={onClick}>
       {children}
     </div>
   )
@@ -311,12 +310,12 @@ function CategoryChip({ label, color, icon: Icon, active = false, onClick }: {
 }) {
   return (
     <button onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 13px',
       borderRadius: 999, fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
       background: active ? `${color}1e` : 'transparent',
       color: active ? color : C.t3,
       border: `1px solid ${active ? `${color}55` : C.br}`,
-      transition: 'all 0.15s',
+      transition: 'all 0.18s ease',
     }}>
       {Icon && <Icon size={13} />}
       {label}
@@ -332,11 +331,10 @@ function ProgressBar({ value, max, label }: { value: number; max: number; label?
         <span style={{ fontSize: 13, color: C.t3 }}>{label}</span>
         <span style={{ fontSize: 13, color: C.t3 }}>{pct}%</span>
       </div>}
-      <div style={{ height: 6, background: C.s2, borderRadius: 999, overflow: 'hidden' }}>
-        <div className="shimmer-bar" style={{
+      <div style={{ height: 6, background: C.s2, borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
+        <div style={{
           height: '100%', width: `${pct}%`, background: C.acc, borderRadius: 999,
-          transition: 'width 0.6s ease',
-          boxShadow: `0 0 8px ${C.accS}`,
+          transition: 'width 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
         }} />
       </div>
     </div>
@@ -737,9 +735,9 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <div style={{ marginBottom: 16 }} className="stagger-1">
             <Badge label="Evidence-based self-discovery" color={C.acc} />
           </div>
-          <h1 className="stagger-2" style={{ fontSize: 52, fontWeight: 800, lineHeight: 1.08, marginBottom: 20, letterSpacing: '-0.03em' }}>
+          <h1 className="stagger-2 font-serif" style={{ fontSize: 54, lineHeight: 1.1, marginBottom: 20 }}>
             Discover yourself<br />
-            <span style={{ color: C.acc }}>through real experiments.</span>
+            <span style={{ color: C.acc }}>through real action.</span>
           </h1>
           <p className="stagger-3" style={{ fontSize: 18, color: C.t2, lineHeight: 1.65, maxWidth: 480, marginBottom: 36 }}>
             Try short activities, record how they feel, and uncover patterns about what energizes you, matters to you, and deserves more of your attention.
@@ -1032,7 +1030,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
           <p style={{ color: C.t4, fontSize: 13, marginBottom: 4 }}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(new Date())}</p>
-          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night' })()}, {user?.display_name || user?.email.split('@')[0]}</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night' })()}, {user?.display_name || user?.email.split('@')[0]}</h1>
           <p style={{ color: C.t3, fontSize: 14 }}>One experiment at a time.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -1059,7 +1057,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <button aria-label="End experiment early" onClick={() => setShowAbandonModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{active.experiment.title}</h2>
+        <h2 className="font-serif" style={{ fontSize: 24, marginBottom: 4 }}>{active.experiment.title}</h2>
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 13, color: C.t3 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> Day {day} of {active.experiment.duration_days}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} /> ~{active.experiment.minutes_per_day} min/day</span>
@@ -1264,7 +1262,7 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Header */}
       <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Explore experiments</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Explore experiments</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Pick one that feels worth exploring. You can always try another after.</p>
         </div>
         {user && <Btn variant="ghost" size="sm" onClick={() => setScreen('saved')}><Bookmark size={15} /> Saved</Btn>}
@@ -1755,28 +1753,20 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }} className="fade-up">
         <div style={{
-          width: 72, height: 72, borderRadius: '50%', background: C.accS,
-          border: `2px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 24px', boxShadow: `0 0 0 12px rgba(34,197,94,0.06)`,
-          position: 'relative',
-        }} className="pulse-acc">
-          <Check size={30} color={C.acc} strokeWidth={2.5} />
-          {[C.acc, C.purple, C.blue, C.orange, C.amber, C.teal].map((color, i) => (
-            <div key={i} style={{
-              position: 'absolute', width: 8, height: 8, borderRadius: '50%', background: color,
-              top: `${-8 + Math.sin(i * 1.05) * 44}px`,
-              left: `${50 + Math.cos(i * 1.05) * 44}%`,
-              animation: `confettiPop 0.6s ${0.1 + i * 0.08}s ease both`,
-            }} />
-          ))}
+          width: 68, height: 68, borderRadius: '50%', background: C.accS,
+          border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 20px', position: 'relative',
+        }}>
+          <Check size={28} color={C.acc} strokeWidth={2.2} />
+          <div style={{ position: 'absolute', top: -4, right: -4, fontSize: 12, color: C.gold }}>✦</div>
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Check-in saved.</h1>
-        <p style={{ fontSize: 16, color: C.t3, lineHeight: 1.6, marginBottom: 32 }}>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 8 }}>Check-in saved.</h1>
+        <p style={{ fontSize: 15, color: C.t3, lineHeight: 1.6, marginBottom: 28 }}>
           You have added another piece of evidence. {active?.checkin_count ?? 1} check-in{active?.checkin_count === 1 ? '' : 's'} collected.
         </p>
 
-        <Card style={{ textAlign: 'left', marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, marginBottom: 12, letterSpacing: '0.04em' }}>TODAY'S SIGNALS</div>
+        <Card style={{ textAlign: 'left', marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.t4, marginBottom: 12, letterSpacing: '0.05em' }}>TODAY'S SIGNALS</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[{ l: 'Enjoyment', v: 4 }, { l: 'Energy', v: 5 }, { l: 'Curiosity', v: 5 }, { l: 'Meaning', v: 3 }].map(({ l, v }) => (
               <ScoreBar key={l} label={l} value={v * 20} />
@@ -1868,7 +1858,7 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <Badge label={report.experiment.category} color={C.purple} />
           <span style={{ fontSize: 13, color: C.t4 }}>Started {report.start_date}</span>
         </div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{report.experiment.title}</h1>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{report.experiment.title}</h1>
         <p style={{ fontSize: 15, color: C.t3 }}>{report.experiment.duration_days} days · {report.checkin_count} check-ins collected</p>
       </div>
 
@@ -2223,7 +2213,7 @@ function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </button>
 
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>What I've learned about myself</h1>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>What I've learned about myself</h1>
         <p style={{ fontSize: 15, color: C.t3 }}>Rule-based hypotheses built from your completed experiment evidence.</p>
       </div>
 
@@ -2380,7 +2370,7 @@ function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       <div style={{ marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Your insights</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Your insights</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Patterns from {data?.completed_count ?? 0} completed experiments.</p>
         </div>
         <Btn variant="secondary" size="sm" onClick={() => setScreen('learned')}>
@@ -2495,7 +2485,7 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Evidence Vault</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Evidence Vault</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Your personal archive of completed experiments.</p>
         </div>
         <button disabled={exportVault.isPending} onClick={() => exportVault.mutate()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit' }}>
