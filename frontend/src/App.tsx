@@ -305,19 +305,34 @@ function Card({ children, style, onClick, accent = false, className = '' }: {
   )
 }
 
+const categoryArtworks: Record<string, string> = {
+  Creative: '/cat_creative_art.jpg',
+  Technical: '/cat_technical_art.jpg',
+  Nature: '/cat_nature_art.jpg',
+  Social: '/cat_social_art.jpg',
+  Service: '/cat_nature_art.jpg',
+  Business: '/cat_technical_art.jpg',
+  Physical: '/cat_social_art.jpg',
+}
+
 function CategoryChip({ label, color, icon: Icon, active = false, onClick }: {
   label: string; color: string; icon?: React.ElementType; active?: boolean; onClick?: () => void
 }) {
+  const artSrc = categoryArtworks[label]
   return (
     <button onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 13px',
+      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px',
       borderRadius: 999, fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
       background: active ? `${color}1e` : 'transparent',
       color: active ? color : C.t3,
       border: `1px solid ${active ? `${color}55` : C.br}`,
       transition: 'all 0.18s ease',
     }}>
-      {Icon && <Icon size={13} />}
+      {artSrc ? (
+        <img src={artSrc} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+      ) : (
+        Icon && <Icon size={13} />
+      )}
       {label}
     </button>
   )
@@ -342,12 +357,16 @@ function ProgressBar({ value, max, label }: { value: number; max: number; label?
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
+  const artSrc = categoryArtworks[label]
   return (
     <span className="scale-in" style={{
-      display: 'inline-flex', alignItems: 'center', padding: '3px 9px',
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px',
       borderRadius: 999, fontSize: 12, fontWeight: 600,
       background: `${color}1a`, color, border: `1px solid ${color}33`,
-    }}>{label}</span>
+    }}>
+      {artSrc && <img src={artSrc} alt="" style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover' }} />}
+      {label}
+    </span>
   )
 }
 
@@ -368,7 +387,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 }
 
 // ─── Constellation SVG ───────────────────────────────────────────────────────
-function Constellation({ w = 560, h = 320 }: { w?: number; h?: number }) {
+export function Constellation({ w = 560, h = 320 }: { w?: number; h?: number }) {
   const nodes = [
     { x: 80,  y: 100, lit: true,  size: 4.5 },
     { x: 190, y: 52,  lit: true,  size: 5 },
@@ -444,13 +463,12 @@ function AppShell({ screen, setScreen, children }: {
         {/* Logo */}
         <div style={{ padding: '8px 12px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: 8, background: C.accS,
-              border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.acc }} />
-            </div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: C.t1, letterSpacing: '-0.01em' }}>Purpose</span>
+            <img
+              src="/app_logo_artwork.jpg"
+              alt="Unfold logo artwork"
+              style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.accB}` }}
+            />
+            <span className="font-serif" style={{ fontWeight: 700, fontSize: 18, color: C.t1, letterSpacing: '-0.01em' }}>Unfold</span>
           </div>
         </div>
 
@@ -714,13 +732,12 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         backdropFilter: 'blur(12px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 7, background: C.accS,
-            border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <div style={{ width: 9, height: 9, borderRadius: '50%', background: C.acc }} />
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em' }}>Purpose</span>
+          <img
+            src="/app_logo_artwork.jpg"
+            alt="Unfold logo artwork"
+            style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.accB}` }}
+          />
+          <span className="font-serif" style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.01em' }}>Unfold</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button onClick={() => setScreen('login')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
@@ -1064,7 +1081,12 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Bell size={16} color={C.t3} />
             <div style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: '50%', background: C.acc }} />
           </button>
-          <div style={{ width: 38, height: 38, borderRadius: 9, background: `${C.purple}22`, border: `1px solid ${C.purple}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: C.purple }}>E</div>
+          <img
+            src="/app_logo_artwork.jpg"
+            alt="User avatar artwork"
+            style={{ width: 38, height: 38, borderRadius: 9, objectFit: 'cover', border: `1px solid ${C.accB}`, cursor: 'pointer' }}
+            onClick={() => setScreen('profile')}
+          />
         </div>
       </div>
       {isFetching && <div style={{ color: C.t4, fontSize: 12, marginBottom: 10 }}>Syncing…</div>}
@@ -1328,8 +1350,12 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Card key={title} accent onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={17} color={color} />
+                  <div style={{ width: 36, height: 36, borderRadius: 10, overflow: 'hidden', border: `1px solid ${color}33`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {categoryArtworks[cat] ? (
+                      <img src={categoryArtworks[cat]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Icon size={17} color={color} />
+                    )}
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
@@ -1359,8 +1385,12 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Card key={title} onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={17} color={color} />
+                  <div style={{ width: 36, height: 36, borderRadius: 10, overflow: 'hidden', border: `1px solid ${color}33`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {categoryArtworks[cat] ? (
+                      <img src={categoryArtworks[cat]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Icon size={17} color={color} />
+                    )}
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
