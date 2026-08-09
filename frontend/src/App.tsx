@@ -730,7 +730,18 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </header>
 
       {/* Hero */}
-      <section className="landing-hero gradient-bg" style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+      <section className="landing-hero gradient-bg" style={{
+        maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px',
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center',
+        position: 'relative', overflow: 'hidden', borderRadius: 24,
+      }}>
+        {/* Background atmospheric image overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'url(/hero_banner_artwork.jpg)',
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          opacity: 0.12, pointerEvents: 'none', mixBlendMode: 'luminosity',
+        }} />
         <div className="fade-up">
           <div style={{ marginBottom: 16 }} className="stagger-1">
             <Badge label="Evidence-based self-discovery" color={C.acc} />
@@ -1064,8 +1075,14 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         boxShadow: `0 0 0 1px ${C.accB}, 0 20px 40px rgba(34,197,94,0.06)`,
         marginBottom: 24, position: 'relative', overflow: 'hidden',
       }}>
-        {/* Background glow */}
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%)' }} />
+        {/* Background glow & atmospheric artwork overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'url(/hero_banner_artwork.jpg)',
+          backgroundSize: 'cover', backgroundPosition: 'center',
+          opacity: 0.08, pointerEvents: 'none', mixBlendMode: 'luminosity',
+        }} />
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(130,151,122,0.1) 0%, transparent 70%)' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <Badge label={active.experiment.category} color={C.purple} />
