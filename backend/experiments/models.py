@@ -7,6 +7,18 @@ class Category(models.Model):
     color = models.CharField(max_length=7, default="#22C55E")
     def __str__(self): return self.name
 
+class ExperimentTrait(models.Model):
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    positive_hypothesis_text = models.CharField(max_length=255, blank=True)
+    negative_hypothesis_text = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Experiment(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="experiments")
     title = models.CharField(max_length=160)
@@ -15,7 +27,34 @@ class Experiment(models.Model):
     duration_days = models.PositiveSmallIntegerField()
     minutes_per_day = models.PositiveSmallIntegerField()
     published = models.BooleanField(default=False)
-    def __str__(self): return self.title
+
+    def __str__(self):
+        return self.title
+
+
+class ExperimentTraitWeight(models.Model):
+    experiment = models.ForeignKey(
+        Experiment,
+        on_delete=models.CASCADE,
+        related_name="trait_weights",
+    )
+    trait = models.ForeignKey(
+        ExperimentTrait,
+        on_delete=models.CASCADE,
+        related_name="experiment_weights",
+    )
+    weight = models.PositiveSmallIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["experiment", "trait"],
+                name="uq_experiment_trait",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.experiment.title} - {self.trait.name} ({self.weight})"
 
 class DailyTask(models.Model):
     experiment = models.ForeignKey(Experiment, on_delete=models.CASCADE, related_name="daily_tasks")

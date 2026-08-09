@@ -16,8 +16,32 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from accounts.models import ConsentRecord, User
 from checkins.models import CheckIn, FinalReflection
-from experiments.models import Experiment, SavedExperiment, UserExperiment
-from .serializers import CheckInSerializer, ExperimentSerializer, FinalReflectionSerializer, LoginSerializer, PasswordResetConfirmSerializer, RegistrationSerializer, SavedExperimentSerializer, UserExperimentSerializer, UserSerializer
+from experiments.models import Experiment, ExperimentTrait, SavedExperiment, UserExperiment
+from insights.models import PatternDefinition, TraitEvidence, UserHypothesis
+from insights.services.hypotheses import recalculate_user_hypotheses
+from insights.services.recommendations import get_contrast_recommendation
+from insights.services.scoring import (
+    calculate_before_after_delta,
+    calculate_daily_fit,
+    calculate_evidence_confidence,
+    calculate_overall_fit,
+    scale_to_100,
+)
+from insights.services.trait_evidence import generate_trait_evidence
+from .serializers import (
+    CheckInSerializer,
+    ExperimentSerializer,
+    ExperimentTraitSerializer,
+    FinalReflectionSerializer,
+    LoginSerializer,
+    PasswordResetConfirmSerializer,
+    PatternDefinitionSerializer,
+    RegistrationSerializer,
+    SavedExperimentSerializer,
+    UserExperimentSerializer,
+    UserHypothesisSerializer,
+    UserSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -252,10 +276,47 @@ def submit_checkin(request, pk):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
     serializer = CheckInSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    if serializer.validated_data["day"] > item.experiment.duration_days:
+    if serializer.validated_data.get("day", 1) > item.experiment.duration_days:
         return Response({"detail": "This day is outside the experiment plan."}, status=status.HTTP_400_BAD_REQUEST)
-    checkin, _ = CheckIn.objects.update_or_create(user_experiment=item, day=serializer.validated_data["day"], defaults=serializer.validated_data)
+    checkin_data = dict(serializer.validated_data)
+    checkin_data["is_complete"] = True
+    checkin, _ = CheckIn.objects.update_or_create(user_experiment=item, day=checkin_data["day"], defaults=checkin_data)
     return Response(CheckInSerializer(checkin).data)
+
+
+@api_view(["POST"])
+def start_checkin(request, pk):
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    day_number = request.data.get("day_number", 1)
+    motivation_before = request.data.get("motivation_before")
+    if motivation_before is not None:
+        try:
+            motivation_before = int(motivation_before)
+            motivation_before = max(1, min(5, motivation_before))
+        except (ValueError, TypeError):
+            motivation_before = 3
+
+    checkin, _ = CheckIn.objects.get_or_create(
+        user_experiment=item,
+        day=day_number,
+        defaults={"motivation_before": motivation_before}
+    )
+    if motivation_before is not None and checkin.motivation_before != motivation_before:
+        checkin.motivation_before = motivation_before
+        checkin.save(update_fields=["motivation_before"])
+
+    return Response(CheckInSerializer(checkin).data)
+
+
+@api_view(["PATCH"])
+def update_checkin_patch(request, pk, checkin_id):
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    checkin = get_object_or_404(CheckIn, pk=checkin_id, user_experiment=item)
+    serializer = CheckInSerializer(checkin, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    updated = serializer.save(is_complete=True)
+    return Response(CheckInSerializer(updated).data)
+
 
 @api_view(["POST"])
 def final_reflection(request, pk):
@@ -265,7 +326,13 @@ def final_reflection(request, pk):
     reflection, _ = FinalReflection.objects.update_or_create(user_experiment=item, defaults=serializer.validated_data)
     item.status = "completed"
     item.save(update_fields=["status"])
+
+    # Generate evidence & update hypotheses
+    generate_trait_evidence(item)
+    recalculate_user_hypotheses(request.user)
+
     return Response(FinalReflectionSerializer(reflection).data)
+
 
 @api_view(["GET"])
 def evidence_vault(request):
@@ -276,23 +343,68 @@ def evidence_vault(request):
 def report_for(item):
     checkins = list(item.checkins.all())
     count = len(checkins)
-    average = lambda field: round(sum(getattr(row, field) for row in checkins) / count * 20) if count else 0
-    consistency = min(100, round(count / item.experiment.duration_days * 100))
-    repeat_intent = getattr(getattr(item, "final_reflection", None), "repeat_intent", 0) * 20
+
+    overall_fit = calculate_overall_fit(item)
+    conf_score, conf_label = calculate_evidence_confidence(item)
+
+    avg_get = lambda attr: round(sum(getattr(row, attr) or 3 for row in checkins) / count * 20) if count else 0
+    consistency = min(100, round(count / max(1, item.experiment.duration_days) * 100))
+    repeat_intent = scale_to_100(getattr(getattr(item, "final_reflection", None), "repeat_intent", None))
+
     dimensions = {
-        "Energy": average("energy"), "Curiosity": average("curiosity"),
-        "Meaning": average("meaning"), "Ease": 100 - average("difficulty"),
-        "Consistency": consistency, "Desire to continue": repeat_intent,
+        "Energy": avg_get("energy_after") if any(c.energy_after for c in checkins) else avg_get("energy"),
+        "Curiosity": avg_get("curiosity"),
+        "Meaning": avg_get("meaning"),
+        "Ease": round(sum(scale_to_100(6 - (c.difficulty or 3)) for c in checkins) / count) if count else 0,
+        "Consistency": consistency,
+        "Desire to continue": round(repeat_intent),
     }
-    populated = [value for value in dimensions.values() if value]
-    fit = round(sum(populated) / len(populated)) if populated else 0
+
+    populated = [v for v in dimensions.values() if v > 0]
     strongest = max(dimensions, key=dimensions.get) if populated else "Not enough evidence"
+
+    # Before/After calculation using latest checkin or average
+    last_checkin = checkins[-1] if checkins else None
+    before_after = calculate_before_after_delta(
+        last_checkin.motivation_before if last_checkin else None,
+        last_checkin.satisfaction_after if last_checkin else None
+    )
+
+    signals = {
+        "enjoyment": avg_get("enjoyment"),
+        "energy": avg_get("energy_after") if any(c.energy_after for c in checkins) else avg_get("energy"),
+        "curiosity": avg_get("curiosity"),
+        "meaning": avg_get("meaning"),
+        "desire_to_continue": avg_get("desire_to_continue"),
+        "desire_to_improve": avg_get("desire_to_improve"),
+        "flow": avg_get("lost_track_of_time"),
+    }
+
+    # Pattern contributions from traits
+    pattern_updates = []
+    for tw in item.experiment.trait_weights.select_related("trait"):
+        pattern_updates.append(
+            f"Contributed evidence to the '{tw.trait.name}' pattern (weight {tw.weight}/5)."
+        )
+
     return {
-        "id": item.id, "status": item.status, "start_date": item.start_date,
+        "id": item.id,
+        "status": item.status,
+        "start_date": item.start_date,
         "experiment": ExperimentSerializer(item.experiment).data,
-        "checkin_count": count, "fit_signal": fit, "strongest_signal": strongest,
+        "checkin_count": count,
+        "fit_signal": int(round(overall_fit)),
+        "overall_fit_score": float(overall_fit),
+        "confidence": {
+            "score": float(conf_score),
+            "label": conf_label,
+        },
+        "strongest_signal": strongest,
         "dimensions": dimensions,
+        "signals": signals,
+        "before_after": before_after,
         "summary": getattr(getattr(item, "final_reflection", None), "summary", ""),
+        "pattern_updates": pattern_updates,
     }
 
 
@@ -303,7 +415,79 @@ def experiment_report(request, pk):
 
 
 @api_view(["GET"])
+def traits_list(request):
+    traits = ExperimentTrait.objects.filter(is_active=True)
+    return Response(ExperimentTraitSerializer(traits, many=True).data)
+
+
+@api_view(["GET"])
+def user_hypotheses_list(request):
+    recalculate_user_hypotheses(request.user)
+    hypotheses = UserHypothesis.objects.filter(user=request.user).select_related("trait")
+    return Response(UserHypothesisSerializer(hypotheses, many=True).data)
+
+
+@api_view(["GET"])
+def user_hypothesis_detail(request, pk):
+    hyp = get_object_or_404(UserHypothesis, pk=pk, user=request.user)
+    evidence_list = TraitEvidence.objects.filter(user=request.user, trait=hyp.trait).select_related("user_experiment__experiment")
+    evidence_data = [
+        {
+            "experiment_id": ev.user_experiment.id,
+            "experiment_title": ev.user_experiment.experiment.title,
+            "fit_score": float(ev.fit_score),
+            "confidence_score": float(ev.confidence_score),
+            "weight": ev.experiment_trait_weight,
+        }
+        for ev in evidence_list
+    ]
+    data = UserHypothesisSerializer(hyp).data
+    data["evidence"] = evidence_data
+    return Response(data)
+
+
+@api_view(["POST"])
+def test_hypothesis(request, pk):
+    hyp = get_object_or_404(UserHypothesis, pk=pk, user=request.user)
+    rec = get_contrast_recommendation(request.user, hyp)
+    if not rec:
+        return Response({"detail": "No suitable test experiment found for this hypothesis."}, status=status.HTTP_404_NOT_FOUND)
+    return Response(rec)
+
+
+@api_view(["GET"])
+def patterns_list(request):
+    patterns = PatternDefinition.objects.filter(is_active=True).prefetch_related("traits")
+    matched_patterns = []
+    for pat in patterns:
+        required_trait_ids = list(pat.traits.values_list("id", flat=True))
+        if not required_trait_ids:
+            continue
+
+        qualifying_runs = UserExperiment.objects.filter(
+            user=request.user,
+            status="completed",
+            experiment__trait_weights__trait_id__in=required_trait_ids
+        ).annotate(matched_count=Count("experiment__trait_weights__trait_id", distinct=True)).filter(matched_count=len(required_trait_ids))
+
+        count = qualifying_runs.count()
+        is_unlocked = count >= pat.min_experiments
+        matched_patterns.append({
+            "id": pat.id,
+            "slug": pat.slug,
+            "title": pat.title,
+            "description": pat.description,
+            "positive_text": pat.positive_text,
+            "qualifying_count": count,
+            "is_unlocked": is_unlocked,
+            "traits": [t.name for t in pat.traits.all()],
+        })
+    return Response(matched_patterns)
+
+
+@api_view(["GET"])
 def insights_view(request):
+    recalculate_user_hypotheses(request.user)
     items = UserExperiment.objects.filter(user=request.user, status="completed").select_related("experiment__category").prefetch_related("checkins")
     reports = [report_for(item) for item in items]
     categories = {}
@@ -312,9 +496,13 @@ def insights_view(request):
         categories.setdefault(category, []).append(report["fit_signal"])
     checkins = list(CheckIn.objects.filter(user_experiment__in=items))
     reflections = list(FinalReflection.objects.filter(user_experiment__in=items))
-    average_curiosity = round(sum(row.curiosity for row in checkins) / len(checkins), 1) if checkins else 0
+    average_curiosity = round(sum(row.curiosity or 3 for row in checkins) / len(checkins), 1) if checkins else 0
     average_repeat_intent = round(sum(row.repeat_intent for row in reflections) / len(reflections) * 20) if reflections else 0
     average_consistency = round(sum(report["dimensions"]["Consistency"] for report in reports) / len(reports)) if reports else 0
+
+    hypotheses = UserHypothesis.objects.filter(user=request.user).select_related("trait")
+    hypotheses_data = UserHypothesisSerializer(hypotheses, many=True).data
+
     return Response({
         "completed_count": len(reports),
         "average_fit": round(sum(r["fit_signal"] for r in reports) / len(reports)) if reports else 0,
@@ -323,6 +511,7 @@ def insights_view(request):
         "average_consistency": average_consistency,
         "categories": [{"label": name, "value": round(sum(values) / len(values)), "count": len(values)} for name, values in categories.items()],
         "patterns": [f"{report['strongest_signal']} is your strongest signal in {report['experiment']['title']}" for report in reports[:3]],
+        "hypotheses": hypotheses_data,
         "evidence_map": [
             {
                 "id": report["id"],
