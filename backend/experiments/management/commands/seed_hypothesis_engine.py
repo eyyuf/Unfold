@@ -1,12 +1,24 @@
 from django.core.management.base import BaseCommand
+from accounts.models import User
 from experiments.models import Experiment, ExperimentTrait, ExperimentTraitWeight
 from insights.models import PatternDefinition
 
 
 class Command(BaseCommand):
-    help = "Seeds initial ExperimentTraits, trait weights for starter experiments, and PatternDefinitions."
+    help = "Seeds initial ExperimentTraits, trait weights for starter experiments, PatternDefinitions, and default admin user."
 
     def handle(self, *args, **kwargs):
+        # Create or update default admin user
+        admin_email = "admin@unfold.local"
+        admin_user, created = User.objects.get_or_create(
+            email=admin_email,
+            defaults={"is_staff": True, "is_superuser": True, "display_name": "Admin"}
+        )
+        admin_user.is_staff = True
+        admin_user.is_superuser = True
+        admin_user.set_password("admin123456")
+        admin_user.save()
+        self.stdout.write(self.style.SUCCESS(f"Default admin user ready: {admin_email} / admin123456"))
         traits_data = [
             ("creative", "Creative", "Creative activities repeatedly produce positive signals for you."),
             ("technical", "Technical", "Technical & analytical tasks suit your problem-solving style."),
