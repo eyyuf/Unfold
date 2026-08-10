@@ -32,14 +32,14 @@ const C = {
   accB:    'var(--acc-border)',
   gold:    'var(--gold)',
   goldS:   'var(--gold-soft)',
-  purple:  '#827397',
-  blue:    '#607080',
-  orange:  '#A27B66',
-  teal:    '#5D827B',
-  amber:   '#A88554',
-  indigo:  '#667085',
-  red:     '#B55F5F',
-  sky:     '#5B7B88',
+  purple:  '#A78BFA',
+  blue:    '#67A7F0',
+  orange:  '#F59E6B',
+  teal:    '#59C7B4',
+  amber:   '#E6B765',
+  indigo:  '#7F91F5',
+  red:     '#EE7777',
+  sky:     '#72B6D5',
 }
 
 // ─── Toast system ────────────────────────────────────────────────────────────
@@ -240,14 +240,14 @@ function Btn({
 }) {
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    fontFamily: 'var(--font-sans)', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
-    border: 'none', borderRadius: 11, transition: 'all 0.18s cubic-bezier(0.22, 1, 0.36, 1)',
+    fontFamily: 'var(--font-sans)', fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer',
+    border: 'none', borderRadius: 999, transition: 'all 0.18s cubic-bezier(0.22, 1, 0.36, 1)',
     width: full ? '100%' : undefined, opacity: disabled ? 0.45 : 1,
-    letterSpacing: '0.005em',
+    letterSpacing: '0.065em', textTransform: 'uppercase',
   }
   const sizes = { sm: { padding: '7px 13px', fontSize: 13 }, md: { padding: '10px 18px', fontSize: 14 }, lg: { padding: '13px 24px', fontSize: 15 } }
   const variants: Record<string, React.CSSProperties> = {
-    primary:   { background: C.acc, color: '#FAF9F5' },
+    primary:   { background: C.acc, color: '#0A0A0B', boxShadow: '0 4px 0 color-mix(in srgb, var(--acc) 66%, #000)' },
     secondary: { background: C.s2, color: C.t1, border: `1px solid ${C.br}` },
     ghost:     { background: 'transparent', color: C.t2, border: `1px solid ${C.br}` },
     danger:    { background: 'rgba(181,95,95,0.1)', color: C.red, border: `1px solid rgba(181,95,95,0.3)` },
@@ -278,8 +278,12 @@ function ErrorBlock({ message, onRetry }: { message: string; onRetry: () => void
 }
 
 function EmptyState({ title, copy, action, onAction }: { title: string; copy: string; action: string; onAction: () => void }) {
-  return <div style={{ maxWidth: 580, margin: '70px auto', padding: 32, textAlign: 'center' }}>
-    <div style={{ fontSize: 20, color: C.gold, marginBottom: 12 }}>✦</div>
+  return <div style={{ maxWidth: 580, margin: '60px auto', padding: '36px 32px', textAlign: 'center' }}>
+    <img
+      src="/app_logo_artwork.jpg"
+      alt="Artwork icon"
+      style={{ width: 56, height: 56, borderRadius: 16, objectFit: 'cover', margin: '0 auto 16px', border: `1px solid ${C.accB}`, boxShadow: 'var(--shadow-md)' }}
+    />
     <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>{title}</h1>
     <p style={{ color: C.t3, lineHeight: 1.65, marginBottom: 24, fontSize: 15 }}>{copy}</p>
     <Btn onClick={onAction}>{action}</Btn>
@@ -290,7 +294,7 @@ function Card({ children, style, onClick, accent = false, className = '' }: {
   children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void; accent?: boolean; className?: string
 }) {
   const base: React.CSSProperties = {
-    background: C.s1, borderRadius: 16, padding: '22px 24px',
+    background: C.s1, borderRadius: 20, padding: '22px 24px',
     border: accent ? `1px solid ${C.accB}` : `1px solid ${C.br}`,
     boxShadow: 'var(--shadow-sm)',
     cursor: onClick ? 'pointer' : undefined,
@@ -310,28 +314,29 @@ const categoryArtworks: Record<string, string> = {
   Technical: '/cat_technical_art.jpg',
   Nature: '/cat_nature_art.jpg',
   Social: '/cat_social_art.jpg',
-  Service: '/cat_nature_art.jpg',
-  Business: '/cat_technical_art.jpg',
-  Physical: '/cat_social_art.jpg',
+  Service: '/cat_service_art.jpg',
+  Business: '/cat_business_art.jpg',
+  Physical: '/cat_physical_art.jpg',
 }
 
-function CategoryChip({ label, color, icon: Icon, active = false, onClick }: {
+function CategoryChip({ label, color, active = false, onClick }: {
   label: string; color: string; icon?: React.ElementType; active?: boolean; onClick?: () => void
 }) {
   const artSrc = categoryArtworks[label]
   return (
     <button onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 12px',
-      borderRadius: 999, fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-      background: active ? `${color}1e` : 'transparent',
-      color: active ? color : C.t3,
-      border: `1px solid ${active ? `${color}55` : C.br}`,
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px',
+      borderRadius: 999, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+      background: active ? `${color}1e` : C.s1,
+      color: active ? color : C.t2,
+      border: `1px solid ${active ? `${color}66` : C.br}`,
       transition: 'all 0.18s ease',
+      boxShadow: 'var(--shadow-sm)',
     }}>
       {artSrc ? (
-        <img src={artSrc} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+        <img src={artSrc} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${color}44` }} />
       ) : (
-        Icon && <Icon size={13} />
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
       )}
       {label}
     </button>
@@ -360,11 +365,16 @@ function Badge({ label, color }: { label: string; color: string }) {
   const artSrc = categoryArtworks[label]
   return (
     <span className="scale-in" style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px',
-      borderRadius: 999, fontSize: 12, fontWeight: 600,
-      background: `${color}1a`, color, border: `1px solid ${color}33`,
+      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '4px 12px',
+      borderRadius: 999, fontSize: 12.5, fontWeight: 600,
+      background: `${color}1e`, color, border: `1px solid ${color}44`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     }}>
-      {artSrc && <img src={artSrc} alt="" style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover' }} />}
+      {artSrc ? (
+        <img src={artSrc} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', border: `1px solid ${color}55` }} />
+      ) : (
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      )}
       {label}
     </span>
   )
@@ -450,34 +460,44 @@ function AppShell({ screen, setScreen, children }: {
     { id: 'vault' as Screen,    label: 'Vault',   Icon: Archive },
     { id: 'profile' as Screen,  label: 'Profile', Icon: User },
   ]
+  const screenTitles: Partial<Record<Screen, string>> = {
+    home: 'Dashboard', library: 'Explore', detail: 'Experiment', commit: 'Commitment', saved: 'Saved',
+    checkin: 'Daily check-in', 'checkin-done': 'Check-in complete', reflection: 'Reflection', report: 'Report',
+    insights: 'Insights', learned: 'What you learned', vault: 'Evidence vault', onboarding: 'Set up',
+    profile: 'Settings', help: 'Help centre',
+  }
+  const screenTitle = screenTitles[screen] ?? 'Unfold'
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: C.bg, overflow: 'hidden' }}>
+    <div className="unfold-shell" style={{ display: 'flex', height: '100vh', background: C.bg, overflow: 'hidden' }}>
       {/* Sidebar – visible md+ */}
       <aside style={{
         width: 220, flexShrink: 0, background: C.bg2,
         borderRight: `1px solid ${C.br}`,
         display: 'flex', flexDirection: 'column',
         padding: '20px 12px',
-      }} className="desktop-sidebar">
+      }} className="desktop-sidebar app-sidebar">
         {/* Logo */}
         <div style={{ padding: '8px 12px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="app-sidebar-brand">
             <img
               src="/app_logo_artwork.jpg"
               alt="Unfold logo artwork"
-              style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.accB}` }}
+              style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accB}`, boxShadow: 'var(--shadow-sm)' }}
             />
-            <span className="font-serif" style={{ fontWeight: 700, fontSize: 18, color: C.t1, letterSpacing: '-0.01em' }}>Unfold</span>
+            <div>
+              <span style={{ display: 'block', fontWeight: 800, fontSize: 18, color: C.t1, letterSpacing: '-0.04em' }}>Unfold</span>
+              <span className="app-sidebar-kicker">Personal lab</span>
+            </div>
           </div>
         </div>
 
         {/* Nav items */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav className="app-sidebar-nav" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {navItems.map(({ id, label, Icon }) => {
             const active = screen === id
             return (
-              <button key={id} onClick={() => setScreen(id)} style={{
+              <button className={`sidebar-nav-button${active ? ' active' : ''}`} key={id} onClick={() => setScreen(id)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
                 borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                 fontSize: 14, fontWeight: active ? 600 : 500,
@@ -525,8 +545,18 @@ function AppShell({ screen, setScreen, children }: {
       </aside>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <main id="main-content" style={{ flex: 1, overflowY: 'auto', padding: '0 0 80px' }} className="md:pb-0">
+      <div className="app-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <header className="app-topbar">
+          <div>
+            <div className="app-topbar-kicker">Your personal evidence lab</div>
+            <div className="app-topbar-title">{screenTitle}</div>
+          </div>
+          <div className="app-topbar-actions">
+            <button className="app-icon-button" aria-label="Open help" onClick={() => setScreen('help')}><HelpCircle size={17} /></button>
+            <button className="app-icon-button" aria-label="Open settings" onClick={() => setScreen('profile')}><Settings size={17} /></button>
+          </div>
+        </header>
+        <main id="main-content" style={{ flex: 1, overflowY: 'auto', padding: '0 0 80px' }} className="md:pb-0 app-scroll-area">
           {children}
         </main>
 
@@ -570,11 +600,12 @@ function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen
     },
   })
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 420, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 420, padding: 32 }}>
         <button onClick={() => setScreen('landing')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}>
           <ChevronLeft size={16} /> Back
         </button>
+        <div className="auth-brand-lockup"><img src="/app_logo_artwork.jpg" alt="Unfold" /><span>Unfold</span></div>
         <Badge label="Your evidence stays private" color={C.acc} />
         <h1 style={{ fontSize: 30, margin: '18px 0 8px' }}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p style={{ color: C.t3, marginBottom: 24 }}>{mode === 'login' ? 'Continue your active experiment.' : 'Start collecting evidence from real experience.'}</p>
@@ -631,8 +662,8 @@ function ForgotPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void })
     mutationFn: () => apiRequest<{ detail: string; reset_url?: string }>('/auth/password-reset/', { method: 'POST', body: JSON.stringify({ email }) }),
   })
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 440, padding: 32 }}>
         <button onClick={() => setScreen('login')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}><ChevronLeft size={16} /> Back to login</button>
         <h1 style={{ fontSize: 28, marginBottom: 8 }}>Reset your password</h1>
         <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 22 }}>Enter your email and we’ll send a secure reset link if an account exists.</p>
@@ -665,8 +696,8 @@ function ResetPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void }) 
   })
   const mismatch = Boolean(confirmPassword && password !== confirmPassword)
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 440, padding: 32 }}>
         <h1 style={{ fontSize: 28, marginBottom: 8 }}>Choose a new password</h1>
         <p style={{ color: C.t3, marginBottom: 22 }}>Use at least 8 characters and avoid common passwords.</p>
         {!reset.isSuccess ? <>
@@ -725,7 +756,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.t1 }}>
       {/* Top nav */}
-      <header style={{
+      <header className="landing-nav" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '18px 40px', borderBottom: `1px solid ${C.br}`,
         position: 'sticky', top: 0, background: C.bg, zIndex: 40,
@@ -735,9 +766,9 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <img
             src="/app_logo_artwork.jpg"
             alt="Unfold logo artwork"
-            style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.accB}` }}
+            style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accB}`, boxShadow: 'var(--shadow-sm)' }}
           />
-          <span className="font-serif" style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.01em' }}>Unfold</span>
+          <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.04em' }}>Unfold</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button onClick={() => setScreen('login')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
@@ -1346,15 +1377,15 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <span style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em' }}>RECOMMENDED FOR YOU</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {exps.slice(0, 2).map(({ title, slug, cat, color, Icon, days, mins, desc, badge }) => (
+          {exps.slice(0, 2).map(({ title, slug, cat, color, days, mins, desc, badge }) => (
             <Card key={title} accent onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, overflow: 'hidden', border: `1px solid ${color}33`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}44`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
                     {categoryArtworks[cat] ? (
                       <img src={categoryArtworks[cat]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <Icon size={17} color={color} />
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', background: color }} />
                     )}
                   </div>
                   <Badge label={cat} color={color} />
@@ -1381,15 +1412,15 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em', marginBottom: 14 }}>ALL EXPERIMENTS</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {exps.map(({ title, slug, cat, color, Icon, days, mins, desc }) => (
+          {exps.map(({ title, slug, cat, color, days, mins, desc }) => (
             <Card key={title} onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, overflow: 'hidden', border: `1px solid ${color}33`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}44`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
                     {categoryArtworks[cat] ? (
                       <img src={categoryArtworks[cat]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <Icon size={17} color={color} />
+                      <span style={{ width: 12, height: 12, borderRadius: '50%', background: color }} />
                     )}
                   </div>
                   <Badge label={cat} color={color} />
