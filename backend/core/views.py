@@ -1,5 +1,8 @@
 import os
 import logging
+from collections import Counter
+from datetime import timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
@@ -50,6 +53,47 @@ logger = logging.getLogger(__name__)
 @permission_classes([permissions.AllowAny])
 def health_view(request):
     return Response({"status": "ok"})
+
+
+@api_view(["GET"])
+def profile_activity(request):
+    try:
+        user_zone = ZoneInfo(request.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        user_zone = ZoneInfo("UTC")
+
+    timestamps = CheckIn.objects.filter(
+        user_experiment__user=request.user,
+        is_complete=True,
+    ).values_list("created_at", flat=True)
+    counts = Counter(timezone.localtime(timestamp, user_zone).date() for timestamp in timestamps)
+    ordered_dates = sorted(counts)
+    today = timezone.localtime(timezone.now(), user_zone).date()
+
+    current_streak = 0
+    if ordered_dates and ordered_dates[-1] >= today - timedelta(days=1):
+        cursor = ordered_dates[-1]
+        active_dates = set(ordered_dates)
+        while cursor in active_dates:
+            current_streak += 1
+            cursor -= timedelta(days=1)
+
+    longest_streak = 0
+    running_streak = 0
+    previous_date = None
+    for activity_date in ordered_dates:
+        running_streak = running_streak + 1 if previous_date and activity_date == previous_date + timedelta(days=1) else 1
+        longest_streak = max(longest_streak, running_streak)
+        previous_date = activity_date
+
+    return Response({
+        "today": today.isoformat(),
+        "days": [{"date": activity_date.isoformat(), "count": counts[activity_date]} for activity_date in ordered_dates],
+        "total_checkins": sum(counts.values()),
+        "active_days": len(ordered_dates),
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+    })
 
 
 @api_view(["GET"])

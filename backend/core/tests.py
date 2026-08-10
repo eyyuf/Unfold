@@ -1,7 +1,10 @@
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 from unittest.mock import patch
+from datetime import timedelta
 from accounts.models import User
+from checkins.models import CheckIn
 from experiments.models import Category, Experiment
 
 
@@ -31,6 +34,7 @@ class ApiFlowTests(TestCase):
             "/api/v1/user-experiments/active/",
             "/api/v1/evidence-vault/",
             "/api/v1/insights/",
+            "/api/v1/profile/activity/",
         ):
             with self.subTest(path=path):
                 response = self.client.get(path)
@@ -60,6 +64,29 @@ class ApiFlowTests(TestCase):
         self.assertEqual(active.data["checkin_count"], 1)
         self.assertEqual(active.data["current_day"], 2)
         self.assertEqual(active.data["recent_checkins"][0]["curiosity"], 5)
+
+    def test_profile_activity_returns_checkin_streaks(self):
+        user = User.objects.create_user("streak@example.com", "a-secure-password", timezone="UTC")
+        self.client.force_authenticate(user)
+        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        for day in (1, 2):
+            self.client.post(
+                f"/api/v1/user-experiments/{started.data['id']}/checkins/",
+                {"day": day, "energy": 4, "curiosity": 4, "meaning": 4, "difficulty": 2},
+                format="json",
+            )
+        now = timezone.now()
+        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=1).update(created_at=now - timedelta(days=1))
+        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=2).update(created_at=now)
+
+        response = self.client.get("/api/v1/profile/activity/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_checkins"], 2)
+        self.assertEqual(response.data["active_days"], 2)
+        self.assertEqual(response.data["current_streak"], 2)
+        self.assertEqual(response.data["longest_streak"], 2)
+        self.assertEqual(len(response.data["days"]), 2)
 
     def test_registration_creates_session_and_csrf_cookie(self):
         self.client.get("/api/v1/auth/csrf/")
