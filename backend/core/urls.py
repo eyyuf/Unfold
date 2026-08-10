@@ -1,25 +1,41 @@
 from django.urls import path
 from . import views
+
 urlpatterns = [
     path("health/", views.health_view),
     path("auth/csrf/", views.csrf_view),
-    path("auth/register/", views.register_view), path("auth/login/", views.login_view),
-    path("auth/logout/", views.logout_view), path("auth/me/", views.me_view),
+    path("auth/register/", views.register_view),
+    path("auth/login/", views.login_view),
+    path("auth/logout/", views.logout_view),
+    path("auth/me/", views.me_view),
+    path("profile/activity/", views.profile_activity),
     path("auth/password-reset/", views.password_reset_request),
     path("auth/password-reset/confirm/", views.password_reset_confirm),
     path("auth/consents/", views.consent_history),
     path("auth/export/", views.export_user_data),
     path("auth/delete-account/", views.delete_account),
+
+    path("traits/", views.traits_list),
+
     path("experiments/", views.ExperimentList.as_view()),
     path("experiments/<slug:slug>/", views.ExperimentDetail.as_view()),
     path("experiments/<slug:slug>/start/", views.start_experiment),
     path("experiments/<slug:slug>/save/", views.toggle_saved_experiment),
     path("saved-experiments/", views.saved_experiments),
+
     path("user-experiments/active/", views.active_experiment),
     path("user-experiments/<int:pk>/abandon/", views.abandon_experiment),
     path("user-experiments/<int:pk>/checkins/", views.submit_checkin),
+    path("user-experiments/<int:pk>/checkins/start/", views.start_checkin),
+    path("user-experiments/<int:pk>/checkins/<int:checkin_id>/", views.update_checkin_patch),
     path("user-experiments/<int:pk>/final-reflection/", views.final_reflection),
     path("user-experiments/<int:pk>/report/", views.experiment_report),
+
     path("insights/", views.insights_view),
+    path("insights/hypotheses/", views.user_hypotheses_list),
+    path("insights/hypotheses/<int:pk>/", views.user_hypothesis_detail),
+    path("insights/hypotheses/<int:pk>/test/", views.test_hypothesis),
+    path("insights/patterns/", views.patterns_list),
+
     path("evidence-vault/", views.evidence_vault),
 ]

@@ -5,13 +5,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { apiRequest } from './api/client'
+import { jsPDF } from 'jspdf'
 import {
   Home, Compass, BarChart2, Archive, User, Bell, Bookmark,
   ChevronRight, ChevronLeft, ArrowRight, Check, X, Play,
   Star, Heart, Brain, TrendingUp, Calendar, Clock,
   BookOpen, Leaf, Users, Dumbbell, Settings,
   HelpCircle, Search, MoreHorizontal,
-  Shield, Lock, Download, Trash2, Moon, Sun
+  Shield, Lock, Download, Trash2, Moon, Sun, Flame, Sparkles
 } from 'lucide-react'
 
 // ─── Color tokens ────────────────────────────────────────────────────────────
@@ -25,18 +26,71 @@ const C = {
   t2:      'var(--t2)',
   t3:      'var(--t3)',
   t4:      'var(--t4)',
-  acc:     '#22C55E',
-  accH:    '#16A34A',
-  accS:    'rgba(34,197,94,0.12)',
-  accB:    'rgba(34,197,94,0.28)',
-  purple:  '#8B5CF6',
-  blue:    '#3B82F6',
-  orange:  '#FB923C',
-  teal:    '#14B8A6',
-  amber:   '#F59E0B',
-  indigo:  '#6366F1',
-  red:     '#EF4444',
-  sky:     '#38BDF8',
+  acc:     'var(--acc)',
+  accH:    'var(--acc-hover)',
+  accS:    'var(--acc-soft)',
+  accB:    'var(--acc-border)',
+  gold:    'var(--gold)',
+  goldS:   'var(--gold-soft)',
+  purple:  '#A78BFA',
+  blue:    '#67A7F0',
+  orange:  '#F59E6B',
+  teal:    '#59C7B4',
+  amber:   '#E6B765',
+  indigo:  '#7F91F5',
+  red:     '#EE7777',
+  sky:     '#72B6D5',
+}
+
+function BrandMark({ size = 38 }: { size?: number }) {
+  return (
+    <span aria-hidden="true" className="brand-mark" style={{ width: size, height: size }}>
+      <Sparkles size={Math.round(size * 0.48)} strokeWidth={2.25} />
+    </span>
+  )
+}
+
+// ─── Toast system ────────────────────────────────────────────────────────────
+type ToastItem = { id: number; message: string; type: 'success' | 'error' }
+let toastListeners: Array<(t: ToastItem[]) => void> = []
+let globalToasts: ToastItem[] = []
+let toastId = 0
+function addToast(message: string, type: 'success' | 'error' = 'success') {
+  const t = { id: ++toastId, message, type }
+  globalToasts = [...globalToasts, t]
+  toastListeners.forEach(fn => fn(globalToasts))
+  setTimeout(() => {
+    globalToasts = globalToasts.filter(x => x.id !== t.id)
+    toastListeners.forEach(fn => fn(globalToasts))
+  }, 3000)
+}
+function useToasts() {
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  useEffect(() => {
+    toastListeners.push(setToasts)
+    return () => { toastListeners = toastListeners.filter(fn => fn !== setToasts) }
+  }, [])
+  return toasts
+}
+function ToastContainer() {
+  const toasts = useToasts()
+  if (!toasts.length) return null
+  return (
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className="toast-in" role="status" style={{
+          padding: '12px 20px', borderRadius: 12, fontSize: 14, fontWeight: 600,
+          background: t.type === 'success' ? C.acc : C.red,
+          color: t.type === 'success' ? '#052e16' : '#fff',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          {t.type === 'success' ? <Check size={16} /> : <X size={16} />}
+          {t.message}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 type ThemePreference = 'dark' | 'light' | 'system'
@@ -49,29 +103,53 @@ function applyThemePreference(preference: ThemePreference) {
   document.documentElement.style.colorScheme = resolved
 }
 
-type Screen = 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'privacy' | 'terms' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'vault' | 'onboarding' | 'profile' | 'help'
+type Screen = 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'privacy' | 'terms' | 'home' | 'library' | 'detail' | 'commit' | 'saved' | 'checkin' | 'checkin-done' | 'reflection' | 'report' | 'insights' | 'learned' | 'vault' | 'onboarding' | 'profile' | 'help'
 type UserData = {
   id: number; email: string; display_name: string; timezone?: string
   reminder_time?: string | null; reminders_enabled?: boolean; email_reminders_enabled?: boolean
   onboarding_answers?: { reason?: string; available_time?: string; interests?: string[] }
   analytics_consent?: boolean
 }
+type ExperimentTraitData = {
+  id: number; slug: string; name: string; description: string; positive_hypothesis_text: string; negative_hypothesis_text: string
+}
 type ExperimentData = {
   id: number; category: string; title: string; slug: string; description: string
   duration_days: number; minutes_per_day: number
   daily_tasks: { day: number; title: string; instructions: string }[]
+  trait_weights?: { id: number; trait: ExperimentTraitData; weight: number }[]
 }
 type ActiveExperiment = {
   id: number; start_date: string; experiment: ExperimentData
   checkin_count: number; current_day: number
-  recent_checkins: { day: number; notes: string; energy: number; curiosity: number; meaning: number }[]
+  recent_checkins: { day: number; notes: string; energy: number; curiosity: number; meaning: number; motivation_before?: number; satisfaction_after?: number }[]
 }
 type ExperimentReport = {
   id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
-  fit_signal: number; strongest_signal: string; dimensions: Record<string, number>; summary: string
+  fit_signal: number; overall_fit_score?: number
+  confidence?: { score: number; label: string }
+  strongest_signal: string; dimensions: Record<string, number>
+  signals?: { enjoyment: number; energy: number; curiosity: number; meaning: number; desire_to_continue: number; desire_to_improve: number; flow: number }
+  before_after?: { motivation_before?: number; satisfaction_after?: number; delta: number; interpretation: string }
+  summary: string
+  pattern_updates?: string[]
 }
 type SavedExperimentData = {
   id: number; experiment: ExperimentData; created_at: string
+}
+type UserHypothesisData = {
+  id: number
+  trait: ExperimentTraitData
+  support_score: number
+  confidence_score: number
+  evidence_count: number
+  status: 'uncertain' | 'emerging' | 'supported' | 'contradicted'
+  status_display: string
+  updated_at: string
+}
+type ContrastRecommendationData = {
+  hypothesis: { id: number; trait: string; trait_name: string; support_score: number; confidence_score: number; status: string }
+  recommended_experiment: { id: number; slug: string; title: string; category: string; description: string; duration_days: number; minutes_per_day: number; reason: string }
 }
 
 function useActiveExperiment() {
@@ -103,7 +181,64 @@ const authSchema = (mode: 'login' | 'register') => z.object({
   }
 })
 
-// ─── Shared primitives ───────────────────────────────────────────────────────
+// ─── Shared primitives ───────────────────────────────────────────────────────────
+
+function ConfirmModal({ open, title, message, confirmLabel = 'Confirm', confirmVariant = 'danger' as const, onConfirm, onCancel, children }: {
+  open: boolean; title: string; message: string; confirmLabel?: string
+  confirmVariant?: 'primary' | 'secondary' | 'ghost' | 'danger'; onConfirm: () => void; onCancel: () => void
+  children?: React.ReactNode
+}) {
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onCancel])
+  if (!open) return null
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div style={{ background: C.s1, borderRadius: 16, padding: 28, maxWidth: 460, width: '100%', border: `1px solid ${C.br}`, boxShadow: '0 24px 48px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()} className="scale-in">
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{title}</h2>
+        <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: children ? 16 : 24 }}>{message}</p>
+        {children}
+        <div style={{ display: 'flex', gap: 10, marginTop: children ? 20 : 0 }}>
+          <Btn variant="ghost" full onClick={onCancel}>Cancel</Btn>
+          <Btn variant={confirmVariant} full onClick={onConfirm}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AnimatedCounter({ value, suffix = '', duration = 1200 }: { value: number; suffix?: string; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  useEffect(() => {
+    const startTime = performance.now()
+    const animate = (now: number) => {
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * value))
+      if (progress < 1) requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  }, [value, duration])
+  return <>{display}{suffix}</>
+}
+
+function SkeletonCard() {
+  return (
+    <div style={{ background: C.s1, borderRadius: 16, padding: '20px 24px', border: `1px solid ${C.br}` }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 9 }} />
+        <div className="skeleton" style={{ width: 70, height: 22, borderRadius: 999 }} />
+      </div>
+      <div className="skeleton" style={{ width: '75%', height: 16, borderRadius: 6, marginBottom: 10 }} />
+      <div className="skeleton" style={{ width: '100%', height: 14, borderRadius: 6, marginBottom: 6 }} />
+      <div className="skeleton" style={{ width: '60%', height: 14, borderRadius: 6 }} />
+    </div>
+  )
+}
 
 function Btn({
   children, variant = 'primary', onClick, size = 'md', full = false, disabled = false
@@ -113,22 +248,22 @@ function Btn({
 }) {
   const base: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    fontFamily: 'inherit', fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer',
-    border: 'none', borderRadius: 10, transition: 'all 0.15s',
+    fontFamily: 'var(--font-sans)', fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer',
+    border: 'none', borderRadius: 999, transition: 'all 0.18s cubic-bezier(0.22, 1, 0.36, 1)',
     width: full ? '100%' : undefined, opacity: disabled ? 0.45 : 1,
-    letterSpacing: '0.01em',
+    letterSpacing: '0.065em', textTransform: 'uppercase',
   }
-  const sizes = { sm: { padding: '8px 14px', fontSize: 13 }, md: { padding: '11px 20px', fontSize: 15 }, lg: { padding: '14px 28px', fontSize: 16 } }
+  const sizes = { sm: { padding: '7px 13px', fontSize: 13 }, md: { padding: '10px 18px', fontSize: 14 }, lg: { padding: '13px 24px', fontSize: 15 } }
   const variants: Record<string, React.CSSProperties> = {
-    primary:   { background: C.acc, color: '#052e16' },
+    primary:   { background: C.acc, color: '#0A0A0B', boxShadow: '0 4px 0 color-mix(in srgb, var(--acc) 66%, #000)' },
     secondary: { background: C.s2, color: C.t1, border: `1px solid ${C.br}` },
     ghost:     { background: 'transparent', color: C.t2, border: `1px solid ${C.br}` },
-    danger:    { background: 'rgba(239,68,68,0.1)', color: C.red, border: `1px solid rgba(239,68,68,0.3)` },
+    danger:    { background: 'rgba(181,95,95,0.1)', color: C.red, border: `1px solid rgba(181,95,95,0.3)` },
   }
   return (
-    <button style={{ ...base, ...sizes[size], ...variants[variant] }} onClick={onClick} disabled={disabled}
-      onMouseEnter={e => { if (!disabled) (e.currentTarget.style.filter = 'brightness(1.1)') }}
-      onMouseLeave={e => { e.currentTarget.style.filter = '' }}>
+    <button className="press-active" style={{ ...base, ...sizes[size], ...variants[variant] }} onClick={onClick} disabled={disabled}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.filter = 'brightness(1.05)' } }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.filter = '' }}>
       {children}
     </button>
   )
@@ -144,55 +279,65 @@ function LoadingBlock({ label }: { label: string }) {
 
 function ErrorBlock({ message, onRetry }: { message: string; onRetry: () => void }) {
   return <div role="alert" style={{ maxWidth: 560, margin: '70px auto', padding: 24, textAlign: 'center' }}>
-    <h2 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h2>
+    <h2 className="font-serif" style={{ fontSize: 24, marginBottom: 8 }}>Something went wrong</h2>
     <p style={{ color: C.t3, marginBottom: 18 }}>{message} Your data was not deleted.</p>
     <Btn onClick={onRetry}>Try again</Btn>
   </div>
 }
 
 function EmptyState({ title, copy, action, onAction }: { title: string; copy: string; action: string; onAction: () => void }) {
-  return <div style={{ maxWidth: 580, margin: '70px auto', padding: 24, textAlign: 'center' }}>
-    <h1 style={{ fontSize: 24, marginBottom: 8 }}>{title}</h1>
-    <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 20 }}>{copy}</p>
+  return <div style={{ maxWidth: 580, margin: '60px auto', padding: '36px 32px', textAlign: 'center' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}><BrandMark size={56} /></div>
+    <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>{title}</h1>
+    <p style={{ color: C.t3, lineHeight: 1.65, marginBottom: 24, fontSize: 15 }}>{copy}</p>
     <Btn onClick={onAction}>{action}</Btn>
   </div>
 }
 
-function Card({ children, style, onClick, accent = false }: {
-  children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void; accent?: boolean
+function Card({ children, style, onClick, accent = false, className = '' }: {
+  children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void; accent?: boolean; className?: string
 }) {
   const base: React.CSSProperties = {
-    background: C.s1, borderRadius: 16, padding: '20px 24px',
+    background: C.s1, borderRadius: 20, padding: '22px 24px',
     border: accent ? `1px solid ${C.accB}` : `1px solid ${C.br}`,
-    boxShadow: accent
-      ? `0 0 0 1px ${C.accB}, 0 12px 30px rgba(34,197,94,0.07)`
-      : '0 8px 24px rgba(0,0,0,0.2)',
+    boxShadow: 'var(--shadow-sm)',
     cursor: onClick ? 'pointer' : undefined,
-    transition: 'all 0.18s',
+    transition: 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease',
     ...style,
   }
+  const combinedClass = [onClick ? 'card-hover' : '', className].filter(Boolean).join(' ')
   return (
-    <div style={base} onClick={onClick}
-      onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = C.br.replace('46','56') } }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderColor = accent ? C.accB : C.br }}>
+    <div className={combinedClass || undefined} style={base} onClick={onClick}>
       {children}
     </div>
   )
 }
 
-function CategoryChip({ label, color, icon: Icon, active = false, onClick }: {
+const categoryIcons: Record<string, React.ElementType> = {
+  Creative: Star,
+  Technical: Brain,
+  Nature: Leaf,
+  Social: Users,
+  Service: Heart,
+  Business: TrendingUp,
+  Physical: Dumbbell,
+}
+
+function CategoryChip({ label, color, icon: IconProp, active = false, onClick }: {
   label: string; color: string; icon?: React.ElementType; active?: boolean; onClick?: () => void
 }) {
+  const Icon = IconProp ?? categoryIcons[label] ?? Sparkles
   return (
     <button onClick={onClick} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-      borderRadius: 999, fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-      background: active ? `${color}1e` : 'transparent',
-      color: active ? color : C.t3,
-      border: `1px solid ${active ? `${color}55` : C.br}`,
-      transition: 'all 0.15s',
+      display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px',
+      borderRadius: 999, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+      background: active ? `${color}1e` : C.s1,
+      color: active ? color : C.t2,
+      border: `1px solid ${active ? `${color}66` : C.br}`,
+      transition: 'all 0.18s ease',
+      boxShadow: 'var(--shadow-sm)',
     }}>
-      {Icon && <Icon size={13} />}
+      <span className="category-icon" style={{ color, background: `${color}18`, borderColor: `${color}42` }}><Icon size={13} strokeWidth={2.2} /></span>
       {label}
     </button>
   )
@@ -206,11 +351,10 @@ function ProgressBar({ value, max, label }: { value: number; max: number; label?
         <span style={{ fontSize: 13, color: C.t3 }}>{label}</span>
         <span style={{ fontSize: 13, color: C.t3 }}>{pct}%</span>
       </div>}
-      <div style={{ height: 6, background: C.s2, borderRadius: 999, overflow: 'hidden' }}>
+      <div style={{ height: 6, background: C.s2, borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
         <div style={{
           height: '100%', width: `${pct}%`, background: C.acc, borderRadius: 999,
-          transition: 'width 0.6s ease',
-          boxShadow: `0 0 8px ${C.accS}`,
+          transition: 'width 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
         }} />
       </div>
     </div>
@@ -218,12 +362,17 @@ function ProgressBar({ value, max, label }: { value: number; max: number; label?
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
+  const Icon = categoryIcons[label] ?? Sparkles
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', padding: '3px 9px',
-      borderRadius: 999, fontSize: 12, fontWeight: 600,
-      background: `${color}1a`, color, border: `1px solid ${color}33`,
-    }}>{label}</span>
+    <span className="scale-in" style={{
+      display: 'inline-flex', alignItems: 'center', gap: 7, padding: '4px 12px',
+      borderRadius: 999, fontSize: 12.5, fontWeight: 600,
+      background: `${color}1e`, color, border: `1px solid ${color}44`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    }}>
+      <Icon size={13} strokeWidth={2.2} />
+      {label}
+    </span>
   )
 }
 
@@ -244,7 +393,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 }
 
 // ─── Constellation SVG ───────────────────────────────────────────────────────
-function Constellation({ w = 560, h = 320 }: { w?: number; h?: number }) {
+export function Constellation({ w = 560, h = 320 }: { w?: number; h?: number }) {
   const nodes = [
     { x: 80,  y: 100, lit: true,  size: 4.5 },
     { x: 190, y: 52,  lit: true,  size: 5 },
@@ -307,35 +456,40 @@ function AppShell({ screen, setScreen, children }: {
     { id: 'vault' as Screen,    label: 'Vault',   Icon: Archive },
     { id: 'profile' as Screen,  label: 'Profile', Icon: User },
   ]
+  const screenTitles: Partial<Record<Screen, string>> = {
+    home: 'Dashboard', library: 'Explore', detail: 'Experiment', commit: 'Commitment', saved: 'Saved',
+    checkin: 'Daily check-in', 'checkin-done': 'Check-in complete', reflection: 'Reflection', report: 'Report',
+    insights: 'Insights', learned: 'What you learned', vault: 'Evidence vault', onboarding: 'Set up',
+    profile: 'Settings', help: 'Help centre',
+  }
+  const screenTitle = screenTitles[screen] ?? 'Unfold'
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: C.bg, overflow: 'hidden' }}>
+    <div className="unfold-shell" style={{ display: 'flex', height: '100vh', background: C.bg, overflow: 'hidden' }}>
       {/* Sidebar – visible md+ */}
       <aside style={{
         width: 220, flexShrink: 0, background: C.bg2,
         borderRight: `1px solid ${C.br}`,
         display: 'flex', flexDirection: 'column',
         padding: '20px 12px',
-      }} className="desktop-sidebar">
+      }} className="desktop-sidebar app-sidebar">
         {/* Logo */}
         <div style={{ padding: '8px 12px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: 8, background: C.accS,
-              border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.acc }} />
+          <div className="app-sidebar-brand">
+            <BrandMark />
+            <div>
+              <span style={{ display: 'block', fontWeight: 800, fontSize: 18, color: C.t1, letterSpacing: '-0.04em' }}>Unfold</span>
+              <span className="app-sidebar-kicker">Personal lab</span>
             </div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: C.t1, letterSpacing: '-0.01em' }}>Purpose</span>
           </div>
         </div>
 
         {/* Nav items */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav className="app-sidebar-nav" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {navItems.map(({ id, label, Icon }) => {
             const active = screen === id
             return (
-              <button key={id} onClick={() => setScreen(id)} style={{
+              <button className={`sidebar-nav-button${active ? ' active' : ''}`} key={id} onClick={() => setScreen(id)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
                 borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                 fontSize: 14, fontWeight: active ? 600 : 500,
@@ -383,8 +537,18 @@ function AppShell({ screen, setScreen, children }: {
       </aside>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <main style={{ flex: 1, overflowY: 'auto', padding: '0 0 80px' }} className="md:pb-0">
+      <div className="app-main-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <header className="app-topbar">
+          <div>
+            <div className="app-topbar-kicker">Your personal evidence lab</div>
+            <div className="app-topbar-title">{screenTitle}</div>
+          </div>
+          <div className="app-topbar-actions">
+            <button className="app-icon-button" aria-label="Open help" onClick={() => setScreen('help')}><HelpCircle size={17} /></button>
+            <button className="app-icon-button" aria-label="Open settings" onClick={() => setScreen('profile')}><Settings size={17} /></button>
+          </div>
+        </header>
+        <main id="main-content" style={{ flex: 1, overflowY: 'auto', padding: '0 0 80px' }} className="md:pb-0 app-scroll-area">
           {children}
         </main>
 
@@ -399,11 +563,12 @@ function AppShell({ screen, setScreen, children }: {
             const active = screen === id
             return (
               <button key={id} onClick={() => setScreen(id)} style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                 border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
                 fontSize: 10, fontWeight: 600, color: active ? C.acc : C.t4,
                 padding: '4px 0', transition: 'color 0.15s',
               }}>
+                {active && <div className="nav-dot" style={{ width: 4, height: 4, borderRadius: '50%', background: C.acc }} />}
                 <Icon size={20} />
                 {label}
               </button>
@@ -418,7 +583,7 @@ function AppShell({ screen, setScreen, children }: {
 // ─── SCREEN: Landing ─────────────────────────────────────────────────────────
 function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen: (s: Screen) => void }) {
   const queryClient = useQueryClient()
-  const { register, handleSubmit, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema(mode)) })
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema(mode)) })
   const mutation = useMutation({
     mutationFn: (values: AuthFields) => apiRequest<UserData>(`/auth/${mode}/`, { method: 'POST', body: JSON.stringify(values) }),
     onSuccess: (user) => {
@@ -427,11 +592,12 @@ function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen
     },
   })
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 420, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 420, padding: 32 }}>
         <button onClick={() => setScreen('landing')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}>
           <ChevronLeft size={16} /> Back
         </button>
+        <div className="auth-brand-lockup"><BrandMark /><span>Unfold</span></div>
         <Badge label="Your evidence stays private" color={C.acc} />
         <h1 style={{ fontSize: 30, margin: '18px 0 8px' }}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p style={{ color: C.t3, marginBottom: 24 }}>{mode === 'login' ? 'Continue your active experiment.' : 'Start collecting evidence from real experience.'}</p>
@@ -442,6 +608,18 @@ function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen
               <input {...register(field)} type={field} autoComplete={field === 'email' ? 'email' : mode === 'login' ? 'current-password' : 'new-password'}
                 style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${errors[field] ? C.red : C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} />
               {errors[field] && <span style={{ color: C.red, display: 'block', marginTop: 5, fontSize: 12 }}>{errors[field]?.message}</span>}
+              {field === 'password' && mode === 'register' && (() => {
+                const pw = watch('password') || ''
+                const strength = pw.length >= 16 ? 4 : pw.length >= 12 ? 3 : pw.length >= 8 ? 2 : pw.length > 0 ? 1 : 0
+                const colors = ['', C.red, C.orange, C.amber, C.acc]
+                return pw.length > 0 ? (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                    {[1,2,3,4].map(i => (
+                      <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= strength ? colors[strength] : C.s2, transition: 'background 0.3s' }} />
+                    ))}
+                  </div>
+                ) : null
+              })()}
             </label>
           ))}
           {mode === 'register' && <>
@@ -461,7 +639,8 @@ function AuthScreen({ mode, setScreen }: { mode: 'login' | 'register'; setScreen
           <Btn full size="lg" disabled={mutation.isPending}>{mutation.isPending ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}</Btn>
         </form>
         {mode === 'login' && <button onClick={() => setScreen('forgot-password')} style={{ width: '100%', marginTop: 14, color: C.t3, background: 'none', border: 0, cursor: 'pointer' }}>Forgot password?</button>}
-        <button onClick={() => setScreen(mode === 'login' ? 'register' : 'login')} style={{ width: '100%', marginTop: 18, color: C.acc, background: 'none', border: 0, cursor: 'pointer' }}>
+        {mode === 'register' && <p style={{ color: C.t4, fontSize: 13, textAlign: 'center', marginTop: 16 }}>Join 2,400+ explorers discovering what fits</p>}
+        <button onClick={() => setScreen(mode === 'login' ? 'register' : 'login')} style={{ width: '100%', marginTop: 14, color: C.acc, background: 'none', border: 0, cursor: 'pointer' }}>
           {mode === 'login' ? 'New here? Create an account' : 'Already have an account? Log in'}
         </button>
       </Card>
@@ -475,8 +654,8 @@ function ForgotPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void })
     mutationFn: () => apiRequest<{ detail: string; reset_url?: string }>('/auth/password-reset/', { method: 'POST', body: JSON.stringify({ email }) }),
   })
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 440, padding: 32 }}>
         <button onClick={() => setScreen('login')} style={{ border: 0, background: 'none', color: C.t3, cursor: 'pointer', padding: 0, marginBottom: 24, display: 'flex', gap: 5 }}><ChevronLeft size={16} /> Back to login</button>
         <h1 style={{ fontSize: 28, marginBottom: 8 }}>Reset your password</h1>
         <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 22 }}>Enter your email and we’ll send a secure reset link if an account exists.</p>
@@ -509,8 +688,8 @@ function ResetPasswordScreen({ setScreen }: { setScreen: (s: Screen) => void }) 
   })
   const mismatch = Boolean(confirmPassword && password !== confirmPassword)
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
-      <Card style={{ width: '100%', maxWidth: 440, padding: 32 }}>
+    <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 440, padding: 32 }}>
         <h1 style={{ fontSize: 28, marginBottom: 8 }}>Choose a new password</h1>
         <p style={{ color: C.t3, marginBottom: 22 }}>Use at least 8 characters and avoid common passwords.</p>
         {!reset.isSuccess ? <>
@@ -569,20 +748,15 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.t1 }}>
       {/* Top nav */}
-      <header style={{
+      <header className="landing-nav" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '18px 40px', borderBottom: `1px solid ${C.br}`,
         position: 'sticky', top: 0, background: C.bg, zIndex: 40,
         backdropFilter: 'blur(12px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 7, background: C.accS,
-            border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <div style={{ width: 9, height: 9, borderRadius: '50%', background: C.acc }} />
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em' }}>Purpose</span>
+          <BrandMark />
+          <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.04em' }}>Unfold</span>
         </div>
         <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button onClick={() => setScreen('login')} style={{ background: 'none', border: 'none', color: C.t3, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', padding: '6px 12px' }}>Browse experiments</button>
@@ -592,19 +766,23 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </header>
 
       {/* Hero */}
-      <section className="landing-hero" style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center' }}>
+      <section className="landing-hero gradient-bg" style={{
+        maxWidth: 1200, margin: '0 auto', padding: '80px 40px 60px',
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 60, alignItems: 'center',
+        position: 'relative', overflow: 'hidden', borderRadius: 24,
+      }}>
         <div className="fade-up">
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }} className="stagger-1">
             <Badge label="Evidence-based self-discovery" color={C.acc} />
           </div>
-          <h1 style={{ fontSize: 52, fontWeight: 800, lineHeight: 1.08, marginBottom: 20, letterSpacing: '-0.03em' }}>
+          <h1 className="stagger-2 font-serif" style={{ fontSize: 54, lineHeight: 1.1, marginBottom: 20 }}>
             Discover yourself<br />
-            <span style={{ color: C.acc }}>through real experiments.</span>
+            <span style={{ color: C.acc }}>through real action.</span>
           </h1>
-          <p style={{ fontSize: 18, color: C.t2, lineHeight: 1.65, maxWidth: 480, marginBottom: 36 }}>
+          <p className="stagger-3" style={{ fontSize: 18, color: C.t2, lineHeight: 1.65, maxWidth: 480, marginBottom: 36 }}>
             Try short activities, record how they feel, and uncover patterns about what energizes you, matters to you, and deserves more of your attention.
           </p>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }} className="stagger-4">
             <Btn variant="primary" size="lg" onClick={() => setScreen('register')}>
               Start your first experiment <ArrowRight size={16} />
             </Btn>
@@ -613,30 +791,33 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             </Btn>
           </div>
           <div style={{ marginTop: 32, display: 'flex', gap: 24 }}>
-            {[{ n: '2,400+', l: 'experiments started' }, { n: '94%', l: 'find it insightful' }, { n: '5 min', l: 'to first check-in' }].map(({ n, l }) => (
+            {[{ n: 2400, s: '+', l: 'experiments started' }, { n: 94, s: '%', l: 'find it insightful' }, { n: 5, s: ' min', l: 'to first check-in' }].map(({ n, s, l }) => (
               <div key={l}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: C.t1 }}>{n}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: C.t1 }}><AnimatedCounter value={n} suffix={s} /></div>
                 <div style={{ fontSize: 13, color: C.t4 }}>{l}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Constellation hero visual */}
+        {/* Code-native signal map: no generated imagery. */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
-          <div style={{
+          <div className="hero-signal-visual" style={{
             position: 'relative', width: 480, height: 320,
-            background: `radial-gradient(ellipse at 40% 40%, rgba(34,197,94,0.06) 0%, transparent 65%)`,
-            borderRadius: 24, border: `1px solid ${C.br}`, overflow: 'hidden',
+            borderRadius: 20, border: `1px solid ${C.accB}`, overflow: 'hidden',
+            boxShadow: 'var(--shadow-md)',
           }}>
             <Constellation w={480} h={320} />
             <div style={{
-              position: 'absolute', bottom: 20, left: 20, right: 20,
-              background: C.s1, borderRadius: 12, padding: '12px 16px',
-              border: `1px solid ${C.br}`, backdropFilter: 'blur(8px)',
+              position: 'absolute', bottom: 16, left: 16, right: 16,
+              background: 'color-mix(in srgb, var(--s1) 88%, transparent)', borderRadius: 14, padding: '14px 18px',
+              border: `1px solid ${C.accB}`, backdropFilter: 'blur(10px)',
             }}>
-              <div style={{ fontSize: 12, color: C.t4, marginBottom: 4 }}>Evidence forming</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.t1 }}>Photography Walk — Day 3 of 7</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: C.gold, letterSpacing: '0.05em' }}><Sparkles size={12} /> EVIDENCE FORMING</span>
+                <span style={{ fontSize: 12, color: C.t3 }}>Day 3 of 7</span>
+              </div>
+              <div className="font-serif" style={{ fontSize: 16, color: '#F1F0E9', marginBottom: 8 }}>Photography Walk</div>
               <ProgressBar value={3} max={7} />
             </div>
           </div>
@@ -677,7 +858,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             See all <ChevronRight size={15} />
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        <div className="experiment-grid-landing" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
           {experiments.map(({ title, cat, color, duration, time, Icon }) => (
             <Card key={title} onClick={() => setScreen('login')} style={{ cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
@@ -726,7 +907,7 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
       {/* Footer */}
       <footer style={{ borderTop: `1px solid ${C.br}`, padding: '28px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: C.t4 }}>© {new Date().getFullYear()} Unfold</span>
+        <span style={{ fontSize: 13, color: C.t4 }}>Copyright {new Date().getFullYear()} Unfold</span>
         <div style={{ display: 'flex', gap: 20 }}>
           {[
             { label: 'Privacy', screen: 'privacy' as Screen },
@@ -856,6 +1037,20 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const { data: active, isPending, isFetching, isError, refetch } = useActiveExperiment()
   const queryClient = useQueryClient()
   const user = queryClient.getQueryData<UserData>(['me'])
+  const [showMotivationModal, setShowMotivationModal] = useState(false)
+  const [motivationBefore, setMotivationBefore] = useState(3)
+  const [showAbandonModal, setShowAbandonModal] = useState(false)
+
+  const startCheckin = useMutation({
+    mutationFn: (val: number) => apiRequest(`/user-experiments/${active?.id}/checkins/start/`, {
+      method: 'POST',
+      body: JSON.stringify({ day_number: active?.current_day, motivation_before: val })
+    }),
+    onSuccess: () => {
+      setShowMotivationModal(false)
+      setScreen('checkin')
+    }
+  })
   const abandon = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('No active experiment found.')
@@ -878,7 +1073,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
           <p style={{ color: C.t4, fontSize: 13, marginBottom: 4 }}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(new Date())}</p>
-          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>Welcome, {user?.display_name || user?.email.split('@')[0]}</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night' })()}, {user?.display_name || user?.email.split('@')[0]}</h1>
           <p style={{ color: C.t3, fontSize: 14 }}>One experiment at a time.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -886,7 +1081,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Bell size={16} color={C.t3} />
             <div style={{ position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: '50%', background: C.acc }} />
           </button>
-          <div style={{ width: 38, height: 38, borderRadius: 9, background: `${C.purple}22`, border: `1px solid ${C.purple}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: C.purple }}>E</div>
+          <button aria-label="Open profile" onClick={() => setScreen('profile')} style={{ padding: 0, background: 'none', border: 0, cursor: 'pointer' }}><BrandMark /></button>
         </div>
       </div>
       {isFetching && <div style={{ color: C.t4, fontSize: 12, marginBottom: 10 }}>Syncing…</div>}
@@ -898,22 +1093,26 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         marginBottom: 24, position: 'relative', overflow: 'hidden',
       }}>
         {/* Background glow */}
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%)' }} />
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(130,151,122,0.1) 0%, transparent 70%)' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <Badge label={active.experiment.category} color={C.purple} />
-          <button aria-label="End experiment early" onClick={() => {
-            if (window.confirm('End this experiment early? Your existing check-ins will remain in your Evidence Vault.')) abandon.mutate()
-          }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
+          <button aria-label="End experiment early" onClick={() => setShowAbandonModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4 }}><MoreHorizontal size={18} /></button>
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{active.experiment.title}</h2>
+        <h2 className="font-serif" style={{ fontSize: 24, marginBottom: 4 }}>{active.experiment.title}</h2>
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 13, color: C.t3 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> Day {day} of {active.experiment.duration_days}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} /> ~{active.experiment.minutes_per_day} min/day</span>
         </div>
 
         <ProgressBar value={day} max={active.experiment.duration_days} label="Progress" />
+
+        {active.checkin_count >= 2 && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: `${C.orange}18`, color: C.orange, fontSize: 12, fontWeight: 700, marginTop: 8 }}>
+            <Flame size={13} /> {active.checkin_count} day streak
+          </div>
+        )}
 
         {/* Day indicators */}
         <div style={{ display: 'flex', gap: 6, margin: '16px 0 20px' }}>
@@ -940,13 +1139,47 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           </div>
         </div>
 
-        <Btn variant="primary" full size="lg" onClick={() => setScreen('checkin')}>
+        <Btn variant="primary" full size="lg" onClick={() => setShowMotivationModal(true)}>
           <Play size={16} />
           Begin today's task
         </Btn>
-        <button disabled={abandon.isPending} onClick={() => {
-          if (window.confirm('End this experiment early? Your existing check-ins will remain in your Evidence Vault.')) abandon.mutate()
-        }} style={{ width: '100%', marginTop: 12, border: 0, background: 'none', color: C.t4, cursor: 'pointer', font: 'inherit', fontSize: 13 }}>
+
+        {showMotivationModal && (
+          <ConfirmModal
+            open={showMotivationModal}
+            title="Before starting today's task"
+            message="How motivated are you to do this right now?"
+            confirmLabel={startCheckin.isPending ? 'Starting…' : 'Start task'}
+            confirmVariant="primary"
+            onConfirm={() => startCheckin.mutate(motivationBefore)}
+            onCancel={() => setShowMotivationModal(false)}
+          >
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', margin: '16px 0 8px' }}>
+              {[1, 2, 3, 4, 5].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setMotivationBefore(v)}
+                  style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    font: 'inherit', fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                    background: motivationBefore === v ? C.acc : C.s2,
+                    color: motivationBefore === v ? '#052e16' : C.t1,
+                    border: `1px solid ${motivationBefore === v ? C.accB : C.br}`,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.t4, padding: '0 4px' }}>
+              <span>1: Not at all</span>
+              <span>5: Very motivated</span>
+            </div>
+          </ConfirmModal>
+        )}
+        <button disabled={abandon.isPending} onClick={() => setShowAbandonModal(true)} style={{ width: '100%', marginTop: 12, border: 0, background: 'none', color: C.t4, cursor: 'pointer', font: 'inherit', fontSize: 13 }}>
           {abandon.isPending ? 'Ending experiment…' : 'End experiment early'}
         </button>
         {abandon.error && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{abandon.error.message}</p>}
@@ -977,8 +1210,8 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </div>
 
       {/* Pattern hint */}
-      {active.recent_checkins.length >= 2 && <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      {active.recent_checkins.length >= 2 && <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }} >
+        <div className="slide-in-up" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
           <div style={{ width: 36, height: 36, borderRadius: 9, background: `${C.purple}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <TrendingUp size={17} color={C.purple} />
           </div>
@@ -988,6 +1221,16 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           </div>
         </div>
       </Card>}
+
+      <ConfirmModal
+        open={showAbandonModal}
+        title="End experiment early?"
+        message="Your existing check-ins will remain in your Evidence Vault. You can start a new experiment after."
+        confirmLabel="End experiment"
+        confirmVariant="danger"
+        onConfirm={() => { setShowAbandonModal(false); abandon.mutate() }}
+        onCancel={() => setShowAbandonModal(false)}
+      />
     </div>
   )
 }
@@ -1047,7 +1290,14 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   })).sort((a, b) => Number(interests.includes(b.category)) - Number(interests.includes(a.category)))
     .map((item, index) => ({ ...item, badge: index === 0 ? (interests.includes(item.category) ? 'Matches your interests' : 'Good first experiment') : undefined }))
   const openExperiment = (slug: string) => navigate(`/app/experiments/${slug}`)
-  if (isLoading) return <LoadingBlock label="Loading experiments…" />
+  if (isLoading) return (
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 24px' }}>
+      <div className="skeleton" style={{ width: 200, height: 28, borderRadius: 8, marginBottom: 28 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+      </div>
+    </div>
+  )
   if (error) return <ErrorBlock message="The experiment library could not be loaded." onRetry={() => refetch()} />
 
   return (
@@ -1055,7 +1305,7 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Header */}
       <div style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Explore experiments</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Explore experiments</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Pick one that feels worth exploring. You can always try another after.</p>
         </div>
         {user && <Btn variant="ghost" size="sm" onClick={() => setScreen('saved')}><Bookmark size={15} /> Saved</Btn>}
@@ -1089,14 +1339,14 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Card key={title} accent onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={17} color={color} />
+                  <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}44`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                    <Icon size={21} color={color} strokeWidth={2} />
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
                  <button aria-label={`${savedSlugs.has(slug) ? 'Remove' : 'Save'} ${title}`} onClick={(event) => toggleSave(event, slug)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: savedSlugs.has(slug) ? C.acc : C.t4 }}><Bookmark size={15} fill={savedSlugs.has(slug) ? 'currentColor' : 'none'} /></button>
               </div>
-              {badge && <div style={{ fontSize: 11, fontWeight: 700, color: C.acc, marginBottom: 6, letterSpacing: '0.04em' }}>✦ {badge.toUpperCase()}</div>}
+              {badge && <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: C.acc, marginBottom: 6, letterSpacing: '0.04em' }}><Sparkles size={12} /> {badge.toUpperCase()}</div>}
               <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, lineHeight: 1.3 }}>{title}</h3>
               <p style={{ fontSize: 13, color: C.t3, lineHeight: 1.55, marginBottom: 14 }}>{desc}</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1120,8 +1370,8 @@ function LibraryScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <Card key={title} onClick={() => openExperiment(slug)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon size={17} color={color} />
+                  <div style={{ width: 46, height: 46, borderRadius: 12, overflow: 'hidden', border: `1px solid ${color}44`, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                    <Icon size={21} color={color} strokeWidth={2} />
                   </div>
                   <Badge label={cat} color={color} />
                 </div>
@@ -1390,8 +1640,19 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       return apiRequest(`/user-experiments/${active.id}/checkins/`, {
         method: 'POST',
         body: JSON.stringify({
-          day: active.current_day, energy: answers[2] ?? 3, curiosity: answers[3] ?? 3,
-          meaning: answers[4] ?? 3, difficulty: 6 - (answers[1] ?? 3), notes,
+          day: active.current_day,
+          enjoyment: answers[1] ?? 3,
+          energy_after: answers[2] ?? 3,
+          curiosity: answers[3] ?? 3,
+          meaning: answers[4] ?? 3,
+          desire_to_continue: answers[5] ?? 3,
+          desire_to_improve: answers[6] ?? 3,
+          lost_track_of_time: answers[7] ?? 3,
+          difficulty: answers[8] ?? 3,
+          satisfaction_after: answers[9] ?? 3,
+          minutes_spent: active.experiment.minutes_per_day,
+          notes,
+          is_complete: true,
         }),
       })
     },
@@ -1404,11 +1665,15 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
   const questions = [
     { q: 'Did you complete today\'s task?', type: 'yn' },
-    { q: 'How enjoyable was it?', labels: ['Not at all', 'Very much'] },
-    { q: 'How energized did you feel afterward?', labels: ['Drained', 'Energized'] },
+    { q: 'How enjoyable was it?', labels: ['Not at all', 'Very enjoyable'] },
+    { q: 'How energized do you feel?', labels: ['Drained', 'Energized'] },
     { q: 'How curious did it make you?', labels: ['Not curious', 'Very curious'] },
     { q: 'How meaningful did it feel?', labels: ['Not meaningful', 'Very meaningful'] },
-    { q: 'Would you want to continue tomorrow?', labels: ['Definitely not', 'Absolutely yes'] },
+    { q: 'Would you like to continue?', labels: ['Definitely not', 'Absolutely yes'] },
+    { q: 'Did you want to improve?', labels: ['No desire', 'Strong desire'] },
+    { q: 'Did you lose track of time?', labels: ['Focused on time', 'Felt flow'] },
+    { q: 'How difficult was it?', labels: ['Very easy', 'Very difficult'] },
+    { q: 'How satisfied are you that you did it?', labels: ['Unsatisfied', 'Very satisfied'] },
     { q: 'Add a note (optional)', type: 'note' },
   ]
 
@@ -1437,7 +1702,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </div>
 
       {/* Question */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 24px', maxWidth: 520, margin: '0 auto', width: '100%' }} className="fade-up" key={step}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '40px 24px', maxWidth: 520, margin: '0 auto', width: '100%' }} className="slide-in-right" key={step}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 40, letterSpacing: '-0.02em', textAlign: 'center' }}>
           {current.q}
         </h2>
@@ -1459,6 +1724,12 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
         {current.labels && (
           <div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+              {[1, 2, 3, 4, 5].map((value) => {
+                const selected = answers[step] === value
+                return <button key={value} type="button" aria-label={`Select ${value} out of 5`} onClick={() => select(value)} style={{ width: 34, height: 34, padding: 0, display: 'grid', placeItems: 'center', borderRadius: 10, border: `1px solid ${selected ? C.accB : C.br}`, background: selected ? C.accS : C.s1, color: selected ? C.acc : C.t4, cursor: 'pointer', transform: selected ? 'scale(1.12)' : 'scale(1)', transition: 'all 0.2s' }}><Sparkles size={14 + value} strokeWidth={selected ? 2.4 : 1.8} /></button>
+              })}
+            </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 14 }}>
               {[1,2,3,4,5].map(v => {
                 const sel = answers[step] === v
@@ -1492,6 +1763,7 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
               fontFamily: 'inherit', fontSize: 15, lineHeight: 1.6, resize: 'none', outline: 'none',
               boxSizing: 'border-box',
             }} />
+            <div style={{ fontSize: 12, color: C.t4, marginTop: 6, textAlign: 'right' }}>{notes.length} / 500</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
               <Btn variant="ghost" full onClick={() => { setNotes(''); submit.mutate() }}>Skip note</Btn>
               <Btn variant="primary" full disabled={submit.isPending} onClick={() => submit.mutate()}>
@@ -1525,19 +1797,20 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }} className="fade-up">
         <div style={{
-          width: 72, height: 72, borderRadius: '50%', background: C.accS,
-          border: `2px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 24px', boxShadow: `0 0 0 12px rgba(34,197,94,0.06)`,
-        }} className="pulse-acc">
-          <Check size={30} color={C.acc} strokeWidth={2.5} />
+          width: 68, height: 68, borderRadius: '50%', background: C.accS,
+          border: `1px solid ${C.accB}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 20px', position: 'relative',
+        }}>
+          <Check size={28} color={C.acc} strokeWidth={2.2} />
+          <div style={{ position: 'absolute', top: -5, right: -5, color: C.gold }}><Sparkles size={15} /></div>
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Check-in saved.</h1>
-        <p style={{ fontSize: 16, color: C.t3, lineHeight: 1.6, marginBottom: 32 }}>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 8 }}>Check-in saved.</h1>
+        <p style={{ fontSize: 15, color: C.t3, lineHeight: 1.6, marginBottom: 28 }}>
           You have added another piece of evidence. {active?.checkin_count ?? 1} check-in{active?.checkin_count === 1 ? '' : 's'} collected.
         </p>
 
-        <Card style={{ textAlign: 'left', marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, marginBottom: 12, letterSpacing: '0.04em' }}>TODAY'S SIGNALS</div>
+        <Card style={{ textAlign: 'left', marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.t4, marginBottom: 12, letterSpacing: '0.05em' }}>TODAY'S SIGNALS</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[{ l: 'Enjoyment', v: 4 }, { l: 'Energy', v: 5 }, { l: 'Curiosity', v: 5 }, { l: 'Meaning', v: 3 }].map(({ l, v }) => (
               <ScoreBar key={l} label={l} value={v * 20} />
@@ -1629,23 +1902,41 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <Badge label={report.experiment.category} color={C.purple} />
           <span style={{ fontSize: 13, color: C.t4 }}>Started {report.start_date}</span>
         </div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 4, letterSpacing: '-0.02em' }}>{report.experiment.title}</h1>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{report.experiment.title}</h1>
         <p style={{ fontSize: 15, color: C.t3 }}>{report.experiment.duration_days} days · {report.checkin_count} check-ins collected</p>
       </div>
 
       {/* Fit signal */}
       <Card accent style={{ textAlign: 'center', marginBottom: 24, padding: '32px 24px' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.06em', marginBottom: 12 }}>FIT SIGNAL</div>
-        <div style={{ fontSize: 72, fontWeight: 800, color: C.acc, lineHeight: 1, marginBottom: 8, letterSpacing: '-0.04em' }}>{report.fit_signal}%</div>
+        <div style={{ fontSize: 72, fontWeight: 800, color: C.acc, lineHeight: 1, marginBottom: 8, letterSpacing: '-0.04em' }}><AnimatedCounter value={report.fit_signal} suffix="%" /></div>
+        {report.confidence && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 999, background: C.s2, border: `1px solid ${C.br}`, fontSize: 13, fontWeight: 600, color: C.t2, marginBottom: 12 }}>
+            <span>Evidence confidence:</span>
+            <span style={{ color: C.acc }}>{report.confidence.label} ({Math.round(report.confidence.score)}%)</span>
+          </div>
+        )}
         <p style={{ fontSize: 14, color: C.t3, maxWidth: 380, margin: '0 auto' }}>
           Based on your daily check-ins, completion consistency, and final reflection. This is not a score — it is a summary of your own responses.
         </p>
       </Card>
 
+      {/* Before vs After Motivation Delta */}
+      {report.before_after?.interpretation && (
+        <Card style={{ marginBottom: 24, background: `${C.blue}0d`, border: `1px solid ${C.blue}22` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, letterSpacing: '0.05em', marginBottom: 6 }}>BEFORE VS AFTER MOTIVATION</div>
+          <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 4 }}>{report.before_after.interpretation}</p>
+          <p style={{ fontSize: 13, color: C.t4 }}>
+            Starting motivation: {report.before_after.motivation_before ? Math.round(report.before_after.motivation_before) + '%' : 'N/A'} ·
+            Satisfaction after: {report.before_after.satisfaction_after ? Math.round(report.before_after.satisfaction_after) + '%' : 'N/A'}
+          </p>
+        </Card>
+      )}
+
       {/* Dimension scores */}
       <Card style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>Dimension breakdown</h2>
-        {dims.map(d => <ScoreBar key={d.l} label={d.l} value={d.v} />)}
+        {dims.map((d, i) => <div key={d.l} className={`stagger-${Math.min(i + 1, 6)}`}><ScoreBar label={d.l} value={d.v} /></div>)}
       </Card>
 
       {/* Insight cards */}
@@ -1656,12 +1947,14 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             {report.strongest_signal} was the clearest signal in your check-ins. This may be worth exploring through another {report.experiment.category.toLowerCase()} experiment.
           </p>
         </Card>
-        <Card style={{ background: `${C.amber}0e`, border: `1px solid ${C.amber}22` }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.amber, letterSpacing: '0.05em', marginBottom: 8 }}>A MIXED SIGNAL</div>
-          <p style={{ fontSize: 15, color: C.t2, lineHeight: 1.65 }}>
-            You enjoyed the activity, but completing it consistently was difficult. The activity may fit you better in a shorter or less structured daily format.
-          </p>
-        </Card>
+        {report.pattern_updates && report.pattern_updates.length > 0 && (
+          <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}22` }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.purple, letterSpacing: '0.05em', marginBottom: 8 }}>PATTERN CONTRIBUTION</div>
+            {report.pattern_updates.map((update, idx) => (
+              <p key={idx} style={{ fontSize: 14, color: C.t2, lineHeight: 1.5, marginBottom: 4 }}>• {update}</p>
+            ))}
+          </Card>
+        )}
       </div>
 
       {/* What this may suggest */}
@@ -1702,6 +1995,404 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 }
 
 // ─── SCREEN: Insights ──────────────────────────────────────────────────────
+// ─── Evidence Map (data-driven SVG constellation) ────────────────────────────
+type EvidenceNode = { id: number; label: string; category: string; fit_signal: number; strongest_signal: string }
+
+function EvidenceMap({ nodes, categoryColors, onNodeClick }: {
+  nodes: EvidenceNode[]; categoryColors: Record<string, string>; onNodeClick: (id: number) => void
+}) {
+  const [hovered, setHovered] = useState<number | null>(null)
+  const W = 720, H = 320, PAD = 60
+
+  // ── Deterministic force-like layout ──
+  // Spread nodes in a circle, then push apart nodes that share connections
+  const positioned = (() => {
+    if (!nodes.length) return []
+    const count = nodes.length
+    // Start with even circular distribution
+    const pts = nodes.map((n, i) => {
+      const angle = (i / count) * Math.PI * 2 - Math.PI / 2
+      const rx = (W - PAD * 2) * 0.38
+      const ry = (H - PAD * 2) * 0.38
+      return {
+        ...n,
+        x: W / 2 + Math.cos(angle) * rx,
+        y: H / 2 + Math.sin(angle) * ry,
+      }
+    })
+
+    // Simple repulsion iterations to avoid overlap
+    for (let iter = 0; iter < 30; iter++) {
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[j].x - pts[i].x
+          const dy = pts[j].y - pts[i].y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          const minDist = 90
+          if (dist < minDist && dist > 0) {
+            const force = (minDist - dist) / dist * 0.3
+            pts[i].x -= dx * force
+            pts[i].y -= dy * force
+            pts[j].x += dx * force
+            pts[j].y += dy * force
+          }
+        }
+        // Clamp to bounds
+        pts[i].x = Math.max(PAD, Math.min(W - PAD, pts[i].x))
+        pts[i].y = Math.max(PAD, Math.min(H - PAD, pts[i].y))
+      }
+    }
+    return pts
+  })()
+
+  // ── Build edges ──
+  // Solid green line = same strongest_signal, dashed gray = same category
+  const edges: { from: number; to: number; type: 'signal' | 'category' }[] = []
+  for (let i = 0; i < positioned.length; i++) {
+    for (let j = i + 1; j < positioned.length; j++) {
+      if (positioned[i].strongest_signal === positioned[j].strongest_signal) {
+        edges.push({ from: i, to: j, type: 'signal' })
+      } else if (positioned[i].category === positioned[j].category) {
+        edges.push({ from: i, to: j, type: 'category' })
+      }
+    }
+  }
+
+  const nodeRadius = (fit: number) => Math.max(6, Math.min(14, fit / 8))
+
+  if (!positioned.length) return <p style={{ color: C.t4, fontSize: 14 }}>Complete experiments to build your evidence map.</p>
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ overflow: 'visible', display: 'block' }}>
+        <defs>
+          <radialGradient id="em-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={C.acc} stopOpacity="0.4"/>
+            <stop offset="100%" stopColor={C.acc} stopOpacity="0"/>
+          </radialGradient>
+          <filter id="em-shadow">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.35" />
+          </filter>
+        </defs>
+
+        {/* Background grid dots */}
+        {Array.from({ length: 12 }).map((_, i) =>
+          Array.from({ length: 6 }).map((_, j) => (
+            <circle key={`g-${i}-${j}`} cx={30 + i * 60} cy={20 + j * 55} r={1} fill="rgba(63,63,70,0.2)" />
+          ))
+        )}
+
+        {/* Edges */}
+        {edges.map(({ from, to, type }, i) => {
+          const a = positioned[from], b = positioned[to]
+          const isHighlighted = hovered !== null && (hovered === from || hovered === to)
+          const baseOpacity = isHighlighted ? 0.7 : (hovered !== null ? 0.1 : type === 'signal' ? 0.4 : 0.2)
+          return (
+            <line key={`e-${i}`}
+              x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+              stroke={type === 'signal' ? 'rgba(34,197,94,0.6)' : 'rgba(63,63,70,0.5)'}
+              strokeWidth={type === 'signal' ? 1.8 : 1}
+              strokeDasharray={type === 'category' ? '6 4' : undefined}
+              opacity={baseOpacity}
+              style={{ transition: 'opacity 0.25s' }}
+            />
+          )
+        })}
+
+        {/* Nodes */}
+        {positioned.map((node, i) => {
+          const color = categoryColors[node.category] ?? C.acc
+          const r = nodeRadius(node.fit_signal)
+          const isHovered = hovered === i
+          const dimmed = hovered !== null && !isHovered && !edges.some(e => (e.from === hovered && e.to === i) || (e.to === hovered && e.from === i))
+          return (
+            <g key={node.id}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => onNodeClick(node.id)}
+              style={{ cursor: 'pointer', transition: 'opacity 0.25s' }}
+              opacity={dimmed ? 0.25 : 1}
+            >
+              {/* Outer glow */}
+              <circle cx={node.x} cy={node.y} r={r * 3} fill={`${color}10`} style={{ transition: 'r 0.2s' }} />
+              {isHovered && <circle cx={node.x} cy={node.y} r={r * 4} fill={`${color}08`} />}
+
+              {/* Core circle */}
+              <circle cx={node.x} cy={node.y} r={isHovered ? r * 1.3 : r} fill={color}
+                style={{ transition: 'r 0.2s', filter: isHovered ? 'url(#em-shadow)' : undefined }} />
+
+              {/* Twinkle ring */}
+              <circle cx={node.x} cy={node.y} r={r * 1.5} fill="none" stroke={color} strokeWidth={0.8}
+                opacity={0.3} style={{ animation: `twinkle ${2.5 + i * 0.4}s ease-in-out infinite` }} />
+
+              {/* Label */}
+              <text x={node.x} y={node.y + r + 16} textAnchor="middle" fill={C.t2}
+                fontSize={11} fontWeight={600} fontFamily="Manrope, sans-serif">
+                {node.label.length > 18 ? node.label.slice(0, 16) + '…' : node.label}
+              </text>
+              <text x={node.x} y={node.y + r + 30} textAnchor="middle" fill={C.t4}
+                fontSize={10} fontWeight={600} fontFamily="Manrope, sans-serif">
+                {node.fit_signal}% fit
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Hover tooltip */}
+      {hovered !== null && positioned[hovered] && (
+        <div className="glass scale-in" style={{
+          position: 'absolute',
+          left: Math.min(positioned[hovered].x, W - 200),
+          top: Math.max(0, positioned[hovered].y - 90),
+          padding: '10px 14px', borderRadius: 10,
+          fontSize: 12, pointerEvents: 'none', zIndex: 10,
+          minWidth: 160,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4, color: C.t1 }}>{positioned[hovered].label}</div>
+          <div style={{ color: C.t3, marginBottom: 2 }}>
+            <Badge label={positioned[hovered].category} color={categoryColors[positioned[hovered].category] ?? C.acc} />
+          </div>
+          <div style={{ color: C.t3, marginTop: 6 }}>Fit signal: <span style={{ color: C.acc, fontWeight: 700 }}>{positioned[hovered].fit_signal}%</span></div>
+          <div style={{ color: C.t4, marginTop: 2 }}>Strongest: {positioned[hovered].strongest_signal}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Hypothesis Card & Learned Insights Component ─────────────────────────────
+type EvidenceItem = { experiment_id: number; experiment_title: string; fit_score: number; confidence_score: number; weight: number }
+
+function HypothesisCard({
+  hypothesis,
+  onViewEvidence,
+  onTestAssumption,
+}: {
+  hypothesis: UserHypothesisData
+  onViewEvidence: (id: number) => void
+  onTestAssumption: (id: number) => void
+}) {
+  const statusColors: Record<string, string> = {
+    supported: C.acc,
+    emerging: C.amber,
+    contradicted: C.red,
+    uncertain: C.t4,
+  }
+
+  const color = statusColors[hypothesis.status] ?? C.acc
+
+  return (
+    <Card style={{ background: `${color}09`, border: `1px solid ${color}25`, marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <Badge label={hypothesis.status_display} color={color} />
+        <span style={{ fontSize: 12, color: C.t4 }}>
+          {hypothesis.evidence_count} experiment{hypothesis.evidence_count !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <h3 style={{ fontSize: 17, fontWeight: 700, color: C.t1, marginBottom: 6 }}>
+        {hypothesis.trait.name}
+      </h3>
+
+      <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.6, marginBottom: 14 }}>
+        {hypothesis.status === 'contradicted'
+          ? (hypothesis.trait.negative_hypothesis_text || `${hypothesis.trait.name} activities have not consistently produced positive signals yet.`)
+          : (hypothesis.trait.positive_hypothesis_text || `${hypothesis.trait.name} activities repeatedly produce positive signals for you.`)}
+      </p>
+
+      <div style={{ display: 'flex', gap: 16, fontSize: 13, color: C.t3, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div>Support: <span style={{ fontWeight: 700, color: C.t1 }}>{Math.round(hypothesis.support_score)}%</span></div>
+        <div>Confidence: <span style={{ fontWeight: 700, color: C.t1 }}>{Math.round(hypothesis.confidence_score)}%</span></div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <Btn variant="ghost" size="sm" onClick={() => onViewEvidence(hypothesis.id)}>
+          View evidence
+        </Btn>
+        {(hypothesis.status === 'emerging' || hypothesis.status === 'supported') && (
+          <Btn variant="secondary" size="sm" onClick={() => onTestAssumption(hypothesis.id)}>
+            Test this assumption
+          </Btn>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+  const navigate = useNavigate()
+  const [selectedHypothesisId, setSelectedHypothesisId] = useState<number | null>(null)
+  const [testHypothesisId, setTestHypothesisId] = useState<number | null>(null)
+
+  const { data: hypotheses = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['hypotheses'],
+    queryFn: () => apiRequest<UserHypothesisData[]>('/insights/hypotheses/'),
+  })
+
+  const { data: detailData, isLoading: detailLoading } = useQuery({
+    queryKey: ['hypothesis', selectedHypothesisId],
+    queryFn: () => selectedHypothesisId ? apiRequest<UserHypothesisData & { evidence: EvidenceItem[] }>(`/insights/hypotheses/${selectedHypothesisId}/`) : null,
+    enabled: !!selectedHypothesisId,
+  })
+
+  const { data: testData, isLoading: testLoading } = useQuery({
+    queryKey: ['recommendation', 'hypothesis', testHypothesisId],
+    queryFn: () => testHypothesisId ? apiRequest<ContrastRecommendationData>(`/insights/hypotheses/${testHypothesisId}/test/`, { method: 'POST' }) : null,
+    enabled: !!testHypothesisId,
+  })
+
+  if (isLoading) return <LoadingBlock label="Analyzing user evidence & hypotheses…" />
+  if (error) return <ErrorBlock message="Could not load your learned hypotheses." onRetry={() => refetch()} />
+
+  const supported = hypotheses.filter(h => h.status === 'supported')
+  const emerging = hypotheses.filter(h => h.status === 'emerging')
+  const uncertain = hypotheses.filter(h => h.status === 'uncertain' || h.status === 'contradicted')
+
+  return (
+    <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
+      <button onClick={() => setScreen('insights')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.t3, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, marginBottom: 20, padding: 0 }}>
+        <ChevronLeft size={16} /> Back to insights
+      </button>
+
+      <div style={{ marginBottom: 28 }}>
+        <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>What I've learned about myself</h1>
+        <p style={{ fontSize: 15, color: C.t3 }}>Rule-based hypotheses built from your completed experiment evidence.</p>
+      </div>
+
+      {/* 1. Strongest Current Patterns */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.acc, letterSpacing: '0.06em', marginBottom: 14 }}>STRONGEST CURRENT PATTERNS</div>
+        {supported.map(h => (
+          <HypothesisCard
+            key={h.id}
+            hypothesis={h}
+            onViewEvidence={setSelectedHypothesisId}
+            onTestAssumption={setTestHypothesisId}
+          />
+        ))}
+        {!supported.length && (
+          <Card style={{ color: C.t4, fontSize: 14 }}>
+            No fully supported patterns yet. Complete 3+ experiments with strong consistent signals to establish a supported pattern.
+          </Card>
+        )}
+      </div>
+
+      {/* 2. Emerging Patterns */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.amber, letterSpacing: '0.06em', marginBottom: 14 }}>EMERGING PATTERNS</div>
+        {emerging.map(h => (
+          <HypothesisCard
+            key={h.id}
+            hypothesis={h}
+            onViewEvidence={setSelectedHypothesisId}
+            onTestAssumption={setTestHypothesisId}
+          />
+        ))}
+        {!emerging.length && (
+          <Card style={{ color: C.t4, fontSize: 14 }}>
+            No emerging patterns detected yet. Complete 2 experiments with positive signals to reveal an emerging hypothesis.
+          </Card>
+        )}
+      </div>
+
+      {/* 3. Still Uncertain */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.06em', marginBottom: 14 }}>STILL UNCERTAIN</div>
+        {uncertain.map(h => (
+          <HypothesisCard
+            key={h.id}
+            hypothesis={h}
+            onViewEvidence={setSelectedHypothesisId}
+            onTestAssumption={setTestHypothesisId}
+          />
+        ))}
+        {!uncertain.length && (
+          <Card style={{ color: C.t4, fontSize: 14 }}>
+            No uncertain hypotheses at present.
+          </Card>
+        )}
+      </div>
+
+      {/* View Evidence Modal */}
+      {selectedHypothesisId && (
+        <ConfirmModal
+          open={!!selectedHypothesisId}
+          title={`Evidence for ${detailData?.trait.name ?? 'hypothesis'}`}
+          message="Experiments that contributed to this trait hypothesis:"
+          confirmLabel="Close"
+          confirmVariant="primary"
+          onConfirm={() => setSelectedHypothesisId(null)}
+          onCancel={() => setSelectedHypothesisId(null)}
+        >
+          {detailLoading ? (
+            <p style={{ color: C.t3 }}>Loading evidence…</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '12px 0' }}>
+              {detailData?.evidence.map((ev, i) => (
+                <div key={i} style={{ padding: 12, borderRadius: 8, background: C.s2, border: `1px solid ${C.br}`, fontSize: 13 }}>
+                  <div style={{ fontWeight: 700, color: C.t1, marginBottom: 4 }}>{ev.experiment_title}</div>
+                  <div style={{ display: 'flex', gap: 12, color: C.t3 }}>
+                    <span>Fit score: <strong style={{ color: C.acc }}>{Math.round(ev.fit_score)}%</strong></span>
+                    <span>Confidence: <strong>{Math.round(ev.confidence_score)}%</strong></span>
+                    <span>Trait weight: <strong>{ev.weight}/5</strong></span>
+                  </div>
+                </div>
+              ))}
+              {!detailData?.evidence?.length && <p style={{ color: C.t4 }}>No supporting evidence records found.</p>}
+            </div>
+          )}
+        </ConfirmModal>
+      )}
+
+      {/* Test Assumption Contrast Recommendation Modal */}
+      {testHypothesisId && (
+        <ConfirmModal
+          open={!!testHypothesisId}
+          title="Test this assumption"
+          message="We found an experiment to test this specific hypothesis:"
+          confirmLabel="Explore experiment"
+          confirmVariant="primary"
+          onConfirm={() => {
+            const slug = testData?.recommended_experiment.slug
+            setTestHypothesisId(null)
+            if (slug) navigate(`/app/experiments/${slug}`)
+            else setScreen('library')
+          }}
+          onCancel={() => setTestHypothesisId(null)}
+        >
+          {testLoading ? (
+            <p style={{ color: C.t3 }}>Finding contrast test experiment…</p>
+          ) : testData ? (
+            <div style={{ margin: '12px 0' }}>
+              <Card accent style={{ marginBottom: 14 }}>
+                <Badge label={testData.recommended_experiment.category} color={C.purple} />
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 6px' }}>{testData.recommended_experiment.title}</h3>
+                <p style={{ fontSize: 14, color: C.t3, marginBottom: 8 }}>
+                  {testData.recommended_experiment.duration_days} days · ~{testData.recommended_experiment.minutes_per_day} min/day
+                </p>
+                <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.55 }}>
+                  {testData.recommended_experiment.description}
+                </p>
+              </Card>
+
+              <Card style={{ background: `${C.blue}0d`, border: `1px solid ${C.blue}22` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.blue, letterSpacing: '0.05em', marginBottom: 6 }}>WHY THIS EXPERIMENT?</div>
+                <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.6 }}>
+                  {testData.recommended_experiment.reason}
+                </p>
+              </Card>
+            </div>
+          ) : (
+            <p style={{ color: C.t4 }}>No candidate experiment found for this hypothesis yet.</p>
+          )}
+        </ConfirmModal>
+      )}
+    </div>
+  )
+}
+
 function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
   const { data, isLoading, error, refetch } = useQuery({
@@ -1718,31 +2409,41 @@ function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const patterns = (data?.patterns ?? []).map((text, index) => ({ text, color: [C.purple, C.blue, C.acc][index % 3], Icon: [Star, Brain, TrendingUp][index % 3] }))
   const categoryColors: Record<string, string> = { Creative: C.purple, Technical: C.blue, Social: C.orange, Nature: C.acc, Service: C.teal, Business: C.indigo, Physical: C.amber }
   const categories = data.categories.map((item) => ({ label: item.label, v: item.value, n: item.count, color: categoryColors[item.label] ?? C.acc }))
-  const nodePositions = [
-    ['10%', '20%'], ['38%', '8%'], ['68%', '24%'], ['22%', '58%'], ['52%', '62%'], ['78%', '55%'],
-  ]
 
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Your insights</h1>
-        <p style={{ fontSize: 15, color: C.t3 }}>Patterns from {data?.completed_count ?? 0} completed experiments.</p>
+      <div style={{ marginBottom: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Your insights</h1>
+          <p style={{ fontSize: 15, color: C.t3 }}>Patterns from {data?.completed_count ?? 0} completed experiments.</p>
+        </div>
+        <Btn variant="secondary" size="sm" onClick={() => setScreen('learned')}>
+          What I've learned <ChevronRight size={14} />
+        </Btn>
       </div>
 
       {/* Constellation evidence map */}
       <Card style={{ marginBottom: 28, padding: '28px', overflow: 'hidden', position: 'relative', background: `radial-gradient(ellipse at 30% 30%, rgba(34,197,94,0.05) 0%, transparent 60%)` }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.t4, letterSpacing: '0.05em', marginBottom: 16 }}>EVIDENCE MAP</div>
-        <div style={{ position: 'relative', height: 260 }}>
-          <Constellation w={720} h={260} />
-          {data.evidence_map.map((node, index) => {
-            const [x, y] = nodePositions[index % nodePositions.length]
-            const color = categoryColors[node.category] ?? C.acc
-            return <button key={node.id} onClick={() => navigate(`/app/reports/${node.id}`)} aria-label={`${node.label}: ${node.fit_signal}% fit, strongest signal ${node.strongest_signal}`} style={{ position: 'absolute', left: x, top: y, fontSize: 11, fontWeight: 700, color, background: `${color}14`, padding: '5px 9px', borderRadius: 6, border: `1px solid ${color}25`, whiteSpace: 'nowrap' }}>
-              {node.label} · {node.fit_signal}%
-            </button>
-          })}
+        <EvidenceMap nodes={data.evidence_map} categoryColors={categoryColors} onNodeClick={(id) => navigate(`/app/reports/${id}`)} />
+        <div style={{ display: 'flex', gap: 16, marginTop: 14, flexWrap: 'wrap' }}>
+          {Object.entries(
+            data.evidence_map.reduce<Record<string, string>>((acc, n) => { acc[n.category] = categoryColors[n.category] ?? C.acc; return acc }, {})
+          ).map(([cat, color]) => (
+            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.t3 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+              {cat}
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.t4 }}>
+            <div style={{ width: 20, height: 2, background: 'rgba(34,197,94,0.35)' }} />
+            shared signal
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.t4 }}>
+            <div style={{ width: 20, height: 2, background: 'rgba(63,63,70,0.4)', borderTop: '1px dashed rgba(63,63,70,0.6)' }} />
+            same category
+          </div>
         </div>
-        <p style={{ fontSize: 13, color: C.t4, marginTop: 8 }}>Each node represents a completed experiment. Connected nodes share strong signals.</p>
       </Card>
 
       {/* Pattern cards */}
@@ -1785,13 +2486,13 @@ function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Metrics row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
         {[
-          { label: 'Avg fit signal', value: `${data?.average_fit ?? 0}%`, sub: `across ${data?.completed_count ?? 0} experiments`, color: C.acc },
-          { label: 'Curiosity rate', value: `${data.average_curiosity}/5`, sub: 'avg across all check-ins', color: C.blue },
-          { label: 'Repeat intent', value: `${data.average_repeat_intent}%`, sub: 'from final reflections', color: C.purple },
-          { label: 'Consistency', value: `${data.average_consistency}%`, sub: 'planned days with check-ins', color: C.amber },
-        ].map(({ label, value, sub, color }) => (
+          { label: 'Avg fit signal', value: data?.average_fit ?? 0, sfx: '%', sub: `across ${data?.completed_count ?? 0} experiments`, color: C.acc },
+          { label: 'Curiosity rate', value: Math.round((data.average_curiosity ?? 0) * 10) / 10, sfx: '/5', sub: 'avg across all check-ins', color: C.blue },
+          { label: 'Repeat intent', value: data.average_repeat_intent ?? 0, sfx: '%', sub: 'from final reflections', color: C.purple },
+          { label: 'Consistency', value: data.average_consistency ?? 0, sfx: '%', sub: 'planned days with check-ins', color: C.amber },
+        ].map(({ label, value, sfx, sub, color }) => (
           <Card key={label} style={{ padding: '18px 20px' }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color, marginBottom: 4 }}>{value}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color, marginBottom: 4 }}><AnimatedCounter value={value} suffix={sfx} /></div>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.t2, marginBottom: 2 }}>{label}</div>
             <div style={{ fontSize: 12, color: C.t4 }}>{sub}</div>
           </Card>
@@ -1828,7 +2529,7 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, letterSpacing: '-0.02em' }}>Evidence Vault</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Evidence Vault</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Your personal archive of completed experiments.</p>
         </div>
         <button disabled={exportVault.isPending} onClick={() => exportVault.mutate()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.t4, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontFamily: 'inherit' }}>
@@ -1838,18 +2539,20 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
 
       {/* Summary row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
-        {[{ n: String(entries.length), l: 'experiments' }, { n: `${averageFit}%`, l: 'avg fit signal' }, { n: String(entries.reduce((sum, entry) => sum + entry.checkin_count, 0)), l: 'check-ins' }].map(({ n, l }) => (
+        {[{ n: entries.length, l: 'experiments' }, { n: averageFit, s: '%', l: 'avg fit signal' }, { n: entries.reduce((sum, entry) => sum + entry.checkin_count, 0), l: 'check-ins' }].map(({ n, s, l }) => (
           <Card key={l} style={{ textAlign: 'center', padding: '16px 12px' }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: C.t1, marginBottom: 2 }}>{n}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: C.t1, marginBottom: 2 }}><AnimatedCounter value={n} suffix={s || ''} /></div>
             <div style={{ fontSize: 12, color: C.t4 }}>{l}</div>
           </Card>
         ))}
       </div>
 
       {/* Entries */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {entries.map((entry) => (
-          <Card key={entry.id} onClick={() => navigate(`/app/reports/${entry.id}`)} style={{ cursor: 'pointer' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
+        <div className="timeline-line" />
+        {entries.map((entry, idx) => (
+          <Card key={entry.id} className={`stagger-${Math.min(idx + 1, 6)}`} onClick={() => navigate(`/app/reports/${entry.id}`)} style={{ cursor: 'pointer', marginLeft: 32 }} >
+            <div style={{ position: 'absolute', left: 15, marginTop: 20, width: 12, height: 12, borderRadius: '50%', background: entry.fit_signal >= 70 ? C.acc : C.amber, border: `2px solid ${C.bg}`, zIndex: 2 }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <Badge label={entry.experiment.category} color={C.purple} />
@@ -1879,11 +2582,92 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
 }
 
 // ─── SCREEN: Profile ──────────────────────────────────────────────────────────
+type ProfileActivityData = {
+  today: string
+  days: { date: string; count: number }[]
+  total_checkins: number
+  active_days: number
+  current_streak: number
+  longest_streak: number
+}
+
+function StreakTracker({ activity, loading }: { activity?: ProfileActivityData; loading: boolean }) {
+  const weekCount = 20
+  const today = new Date(`${activity?.today ?? new Date().toISOString().slice(0, 10)}T12:00:00`)
+  const latestSunday = new Date(today)
+  latestSunday.setDate(today.getDate() - today.getDay())
+  const firstSunday = new Date(latestSunday)
+  firstSunday.setDate(latestSunday.getDate() - (weekCount - 1) * 7)
+  const activityByDate = new Map((activity?.days ?? []).map((day) => [day.date, day.count]))
+  const toDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const weeks = Array.from({ length: weekCount }, (_, weekIndex) => Array.from({ length: 7 }, (_, dayIndex) => {
+    const date = new Date(firstSunday)
+    date.setDate(firstSunday.getDate() + weekIndex * 7 + dayIndex)
+    const key = toDateKey(date)
+    return { date, key, count: activityByDate.get(key) ?? 0 }
+  }))
+
+  return (
+    <Card className="streak-card" style={{ marginBottom: 20, padding: 0, overflow: 'hidden' }}>
+      <div className="streak-card-header">
+        <div>
+          <div className="ui-eyebrow">Activity streak</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: '7px 0 4px' }}>Your consistency map</h2>
+          <p style={{ color: C.t3, fontSize: 13, margin: 0 }}>Every completed check-in adds a signal.</p>
+        </div>
+        <div className="streak-current"><Flame size={19} strokeWidth={2.2} /><strong>{activity?.current_streak ?? 0}</strong><span>day streak</span></div>
+      </div>
+
+      <div className="streak-chart-scroll" aria-label="Check-in activity over the last 20 weeks">
+        <div className="streak-chart-inner">
+          <div className="streak-month-row" aria-hidden="true">
+            <span />
+            <div className="streak-months">
+              {weeks.map((week, index) => {
+                const monthChanged = index === 0 || week[0].date.getMonth() !== weeks[index - 1][0].date.getMonth()
+                return <span key={week[0].key}>{monthChanged ? week[0].date.toLocaleDateString(undefined, { month: 'short' }) : ''}</span>
+              })}
+            </div>
+          </div>
+          <div className="streak-grid-row">
+            <div className="streak-day-labels" aria-hidden="true"><span>Mon</span><span>Wed</span><span>Fri</span></div>
+            <div className={`streak-weeks${loading ? ' skeleton' : ''}`}>
+              {weeks.map((week) => <div className="streak-week" key={week[0].key}>
+                {week.map(({ date, key, count }) => {
+                  const level = count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : 4
+                  const future = date > today
+                  const label = `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}: ${count} check-in${count === 1 ? '' : 's'}`
+                  return <span key={key} className={`streak-cell level-${future ? 0 : level}${future ? ' future' : ''}`} title={label} aria-label={label} />
+                })}
+              </div>)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="streak-card-footer">
+        {[
+          { value: activity?.longest_streak ?? 0, label: 'Best streak' },
+          { value: activity?.active_days ?? 0, label: 'Active days' },
+          { value: activity?.total_checkins ?? 0, label: 'Check-ins' },
+        ].map((stat) => <div key={stat.label}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}
+        <div className="streak-legend" aria-label="Activity intensity"><span>Less</span>{[0, 1, 2, 3, 4].map((level) => <i key={level} className={`streak-cell level-${level}`} />)}<span>More</span></div>
+      </div>
+    </Card>
+  )
+}
+
 function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [theme, setTheme] = useState<ThemePreference>(() => (localStorage.getItem('unfold-theme') as ThemePreference | null) ?? 'dark')
   const [showConsents, setShowConsents] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const queryClient = useQueryClient()
   const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData | null>('/auth/me/') })
+  const { data: activity, isPending: activityLoading } = useQuery({
+    queryKey: ['profile-activity'],
+    queryFn: () => apiRequest<ProfileActivityData>('/profile/activity/'),
+  })
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
   const [timezone, setTimezone] = useState(user?.timezone ?? 'Africa/Nairobi')
@@ -1895,7 +2679,7 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   }, [user])
   const updateProfile = useMutation({
     mutationFn: (data: object) => apiRequest<UserData>('/auth/me/', { method: 'PATCH', body: JSON.stringify(data) }),
-    onSuccess: (data) => queryClient.setQueryData(['me'], data),
+    onSuccess: (data) => { queryClient.setQueryData(['me'], data); addToast('Settings saved') },
   })
   const { data: consents = [] } = useQuery({
     queryKey: ['consent-history'],
@@ -1903,14 +2687,221 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
     enabled: showConsents,
   })
   const exportData = useMutation({
-    mutationFn: () => apiRequest<Record<string, unknown>>('/auth/export/'),
+    mutationFn: () => apiRequest<Record<string, any>>('/auth/export/'),
     onSuccess: (data) => {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `unfold-data-${new Date().toISOString().slice(0, 10)}.json`
-      link.click()
-      URL.revokeObjectURL(url)
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const W = 210, M = 20
+      const contentW = W - M * 2
+      let y = 0
+
+      const ensurePage = (need: number) => {
+        if (y + need > 277) { doc.addPage(); y = M; }
+      }
+
+      // ── Helper: draw a horizontal rule ──
+      const hr = () => {
+        doc.setDrawColor(200, 200, 200)
+        doc.setLineWidth(0.3)
+        doc.line(M, y, W - M, y)
+        y += 6
+      }
+
+      // ── Helper: draw colored bar ──
+      const bar = (x: number, _w: number, value: number, maxW: number, color: [number, number, number]) => {
+        doc.setFillColor(240, 240, 240)
+        doc.roundedRect(x, y, maxW, 4, 2, 2, 'F')
+        doc.setFillColor(...color)
+        doc.roundedRect(x, y, Math.max(2, (value / 100) * maxW), 4, 2, 2, 'F')
+      }
+
+      // ══════════════ COVER ══════════════
+      doc.setFillColor(9, 9, 11)
+      doc.rect(0, 0, W, 297, 'F')
+
+      // Green accent circle
+      doc.setFillColor(34, 197, 94)
+      doc.circle(W / 2, 100, 18, 'F')
+      doc.setFillColor(9, 9, 11)
+      doc.circle(W / 2, 100, 14, 'F')
+      doc.setFillColor(34, 197, 94)
+      doc.circle(W / 2, 100, 4, 'F')
+
+      doc.setTextColor(250, 250, 250)
+      doc.setFontSize(32)
+      doc.text('Unfold', W / 2, 138, { align: 'center' })
+      doc.setFontSize(12)
+      doc.setTextColor(161, 161, 170)
+      doc.text('Your Personal Evidence Report', W / 2, 150, { align: 'center' })
+
+      doc.setFontSize(10)
+      doc.setTextColor(113, 113, 122)
+      const profile = data.profile || {}
+      doc.text(profile.display_name || profile.email || 'Explorer', W / 2, 175, { align: 'center' })
+      doc.text(`Exported ${new Date(data.exported_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, W / 2, 182, { align: 'center' })
+
+      const experiments = data.experiments || []
+      const completed = experiments.filter((e: any) => e.status === 'completed')
+      doc.setTextColor(161, 161, 170)
+      doc.text(`${completed.length} experiments completed  •  ${experiments.reduce((s: number, e: any) => s + (e.checkin_count || 0), 0)} total check-ins`, W / 2, 200, { align: 'center' })
+
+      // ══════════════ EXPERIMENTS ══════════════
+      experiments.forEach((exp: any, idx: number) => {
+        doc.addPage()
+        y = M
+
+        // Header bar
+        doc.setFillColor(24, 24, 27)
+        doc.roundedRect(M, y, contentW, 32, 3, 3, 'F')
+
+        doc.setFontSize(16)
+        doc.setTextColor(250, 250, 250)
+        doc.text(exp.experiment?.title || `Experiment ${idx + 1}`, M + 10, y + 13)
+
+        doc.setFontSize(9)
+        doc.setTextColor(161, 161, 170)
+        const meta = [exp.experiment?.category, `${exp.experiment?.duration_days || '?'} days`, exp.status].filter(Boolean).join('  •  ')
+        doc.text(meta, M + 10, y + 23)
+
+        // Fit signal badge
+        const fit = exp.fit_signal || 0
+        const fitColor: [number, number, number] = fit >= 70 ? [34, 197, 94] : fit >= 45 ? [245, 158, 11] : [161, 161, 170]
+        doc.setFillColor(...fitColor)
+        doc.roundedRect(W - M - 30, y + 6, 20, 20, 3, 3, 'F')
+        doc.setFontSize(14)
+        doc.setTextColor(9, 9, 11)
+        doc.text(`${fit}%`, W - M - 20, y + 19, { align: 'center' })
+
+        y += 40
+
+        // Start date & strongest signal
+        doc.setFontSize(10)
+        doc.setTextColor(100, 100, 110)
+        doc.text(`Started: ${exp.start_date || 'N/A'}`, M, y)
+        doc.text(`Strongest signal: ${exp.strongest_signal || 'N/A'}`, M + 80, y)
+        y += 10
+
+        // Dimension breakdown
+        if (exp.dimensions) {
+          doc.setFontSize(11)
+          doc.setTextColor(60, 60, 68)
+          doc.text('Dimension Breakdown', M, y)
+          y += 8
+
+          Object.entries(exp.dimensions as Record<string, number>).forEach(([dim, val]) => {
+            ensurePage(12)
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 110)
+            doc.text(dim, M, y + 3)
+            doc.text(`${val}%`, M + 42, y + 3)
+            const barColor: [number, number, number] = val >= 70 ? [34, 197, 94] : val >= 45 ? [245, 158, 11] : [161, 161, 170]
+            bar(M + 52, contentW - 52, val, contentW - 52, barColor)
+            y += 9
+          })
+          y += 4
+        }
+
+        // Summary
+        if (exp.summary) {
+          ensurePage(25)
+          hr()
+          doc.setFontSize(10)
+          doc.setTextColor(60, 60, 68)
+          doc.text('Final Reflection', M, y)
+          y += 6
+          doc.setFontSize(9)
+          doc.setTextColor(80, 80, 88)
+          const lines = doc.splitTextToSize(exp.summary, contentW)
+          doc.text(lines, M, y)
+          y += lines.length * 4.5 + 4
+        }
+
+        // Reason
+        if (exp.reason) {
+          ensurePage(20)
+          doc.setFontSize(10)
+          doc.setTextColor(60, 60, 68)
+          doc.text('Why you started', M, y)
+          y += 6
+          doc.setFontSize(9)
+          doc.setTextColor(80, 80, 88)
+          const lines = doc.splitTextToSize(exp.reason, contentW)
+          doc.text(lines, M, y)
+          y += lines.length * 4.5 + 4
+        }
+
+        // Check-ins table
+        const checkins = exp.checkins || []
+        if (checkins.length) {
+          ensurePage(20)
+          hr()
+          doc.setFontSize(10)
+          doc.setTextColor(60, 60, 68)
+          doc.text(`Check-ins (${checkins.length})`, M, y)
+          y += 7
+
+          // Table header
+          doc.setFillColor(245, 245, 248)
+          doc.rect(M, y, contentW, 7, 'F')
+          doc.setFontSize(8)
+          doc.setTextColor(100, 100, 110)
+          const cols = [M + 2, M + 22, M + 42, M + 62, M + 82, M + 102]
+          const headers = ['Day', 'Energy', 'Curiosity', 'Meaning', 'Difficulty', 'Note']
+          headers.forEach((h, i) => doc.text(h, cols[i], y + 5))
+          y += 9
+
+          checkins.forEach((ci: any) => {
+            ensurePage(8)
+            doc.setFontSize(8)
+            doc.setTextColor(70, 70, 78)
+            doc.text(String(ci.day_number || ''), cols[0], y + 3)
+            doc.text(`${ci.energy}/5`, cols[1], y + 3)
+            doc.text(`${ci.curiosity}/5`, cols[2], y + 3)
+            doc.text(`${ci.meaning}/5`, cols[3], y + 3)
+            doc.text(`${ci.difficulty}/5`, cols[4], y + 3)
+            const note = ci.notes ? (ci.notes.length > 30 ? ci.notes.slice(0, 28) + '…' : ci.notes) : '—'
+            doc.text(note, cols[5], y + 3)
+
+            doc.setDrawColor(235, 235, 238)
+            doc.setLineWidth(0.2)
+            doc.line(M, y + 5, W - M, y + 5)
+            y += 7
+          })
+          y += 4
+        }
+      })
+
+      // ══════════════ SAVED EXPERIMENTS ══════════════
+      const saved = data.saved_experiments || []
+      if (saved.length) {
+        doc.addPage()
+        y = M
+        doc.setFontSize(14)
+        doc.setTextColor(40, 40, 44)
+        doc.text('Saved Experiments', M, y)
+        y += 10
+        saved.forEach((s: any) => {
+          ensurePage(10)
+          doc.setFontSize(10)
+          doc.setTextColor(60, 60, 68)
+          doc.text(`• ${s.experiment?.title || 'Untitled'}`, M, y)
+          doc.setTextColor(140, 140, 148)
+          doc.text(s.experiment?.category || '', M + 120, y)
+          y += 7
+        })
+      }
+
+      // ══════════════ FOOTER on every page ══════════════
+      const pageCount = doc.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(180, 180, 185)
+        doc.text('Unfold — Evidence-based self-discovery', M, 290)
+        doc.text(`Page ${i} of ${pageCount}`, W - M, 290, { align: 'right' })
+      }
+
+      doc.save(`unfold-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+      addToast('PDF report downloaded')
     },
   })
   const deleteUser = useMutation({
@@ -1928,13 +2919,13 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 28, letterSpacing: '-0.02em' }}>Profile & settings</h1>
 
       {/* Avatar */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 20 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${C.purple}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: C.purple }}>{(user?.display_name || user?.email || 'U')[0].toUpperCase()}</div>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `linear-gradient(135deg, ${C.purple}44, ${C.blue}44)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: C.purple }}>{(user?.display_name || user?.email || 'U')[0].toUpperCase()}</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{user?.display_name || 'Explorer'}</div>
             <div style={{ color: C.t4, fontSize: 14 }}>{user?.email}</div>
@@ -1960,6 +2951,8 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           </select>
         </label>
       </Card>
+
+      <StreakTracker activity={activity} loading={activityLoading} />
 
       {/* Reminders */}
       <Card style={{ marginBottom: 20 }}>
@@ -2025,12 +3018,10 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             </div>)}
           </div>}
           <button disabled={exportData.isPending} onClick={() => exportData.mutate()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: C.s2, border: 'none', color: C.t2, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Download size={15} color={C.t4} />{exportData.isPending ? 'Preparing export…' : 'Export your data'}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Download size={15} color={C.t4} />{exportData.isPending ? 'Preparing PDF…' : 'Export as PDF'}</span>
             <ChevronRight size={14} color={C.t4} />
           </button>
-          <button disabled={deleteUser.isPending} onClick={() => {
-            if (window.prompt('This permanently deletes your account and all evidence. Type DELETE to continue.') === 'DELETE') deleteUser.mutate()
-          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: `1px solid rgba(239,68,68,0.2)`, color: C.red, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
+          <button disabled={deleteUser.isPending} onClick={() => setShowDeleteModal(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.07)', border: `1px solid rgba(239,68,68,0.2)`, color: C.red, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Trash2 size={15} />Delete account</span>
             <ChevronRight size={14} />
           </button>
@@ -2038,6 +3029,21 @@ function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
         </div>
       </Card>
       <Btn variant="ghost" full disabled={logoutUser.isPending} onClick={() => logoutUser.mutate()}>Log out</Btn>
+
+      <ConfirmModal
+        open={showDeleteModal}
+        title="Delete your account?"
+        message="This permanently deletes your account and all evidence. This action cannot be undone."
+        confirmLabel="Delete account permanently"
+        confirmVariant="danger"
+        onConfirm={() => { if (deleteConfirmation === 'DELETE') { setShowDeleteModal(false); deleteUser.mutate() } }}
+        onCancel={() => { setShowDeleteModal(false); setDeleteConfirmation('') }}
+      >
+        <label style={{ display: 'block', color: C.t2, fontSize: 14 }}>
+          <span style={{ display: 'block', marginBottom: 7 }}>Type DELETE to confirm</span>
+          <input value={deleteConfirmation} onChange={e => setDeleteConfirmation(e.target.value)} placeholder="DELETE" style={{ width: '100%', background: C.s2, color: C.t1, border: `1px solid ${deleteConfirmation === 'DELETE' ? C.red : C.br}`, borderRadius: 10, padding: '12px 14px', font: 'inherit' }} />
+        </label>
+      </ConfirmModal>
     </div>
   )
 }
@@ -2139,7 +3145,7 @@ export default function App() {
     privacy: '/privacy', terms: '/terms', onboarding: '/onboarding', home: '/app', library: '/app/explore',
     detail: '/app/experiments/photography-walk', commit: '/app/experiments/photography-walk/commit', saved: '/app/saved', checkin: '/app/check-in',
     'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
-    insights: '/app/insights', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
+    insights: '/app/insights', learned: '/app/insights/learned', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
   }
   const screen = (location.pathname.startsWith('/app/reports/') ? 'report' :
     location.pathname.endsWith('/commit') && location.pathname.startsWith('/app/experiments/') ? 'commit' :
@@ -2152,7 +3158,7 @@ export default function App() {
     retry: false,
   })
 
-  const authenticatedScreens: Screen[] = ['onboarding', 'home', 'library', 'detail', 'commit', 'saved', 'checkin', 'checkin-done', 'reflection', 'report', 'insights', 'vault', 'profile', 'help']
+  const authenticatedScreens: Screen[] = ['onboarding', 'home', 'library', 'detail', 'commit', 'saved', 'checkin', 'checkin-done', 'reflection', 'report', 'insights', 'learned', 'vault', 'profile', 'help']
   const isAuthenticated = authenticatedScreens.includes(screen)
 
   const renderScreen = () => {
@@ -2183,6 +3189,7 @@ export default function App() {
           case 'saved':    return <SavedExperimentsScreen setScreen={setScreen} />
           case 'report':   return <ReportScreen setScreen={setScreen} />
           case 'insights': return <InsightsScreen setScreen={setScreen} />
+          case 'learned':  return <LearnedScreen setScreen={setScreen} />
           case 'vault':    return <VaultScreen setScreen={setScreen} />
           case 'profile':  return <ProfileScreen setScreen={setScreen} />
           case 'help':     return <HelpScreen setScreen={setScreen} />
@@ -2196,6 +3203,8 @@ export default function App() {
 
   return (
     <div>
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <ToastContainer />
       {!isOnline && <div role="status" style={{ position: 'fixed', zIndex: 100, top: 0, left: 0, right: 0, padding: '9px 16px', textAlign: 'center', background: C.amber, color: '#271500', fontSize: 13, fontWeight: 700 }}>You appear to be offline. Check-in progress is kept on this device.</div>}
       {renderScreen()}
     </div>
