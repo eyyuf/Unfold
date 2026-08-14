@@ -37,6 +37,8 @@ React 19, TypeScript, Vite, Vanilla CSS, TanStack Query, React Hook Form, Zod, R
 
 ## Local development
 
+Create the PostgreSQL database `unfold_db`, copy `.env.example` to `.env`, and replace the local database password placeholder before running migrations. Django loads the root `.env` without overriding variables already supplied by the shell or hosting environment.
+
 ```bash
 npm --prefix frontend install
 npm --prefix frontend run dev

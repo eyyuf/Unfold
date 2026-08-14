@@ -1,10 +1,13 @@
 import os
 from pathlib import Path
+
 import dj_database_url
 import sentry_sdk
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent / ".env", override=False)
 SECRET_KEY = os.environ.get("SECRET_KEY", "development-only-secret")
 DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 if not DEBUG and SECRET_KEY == "development-only-secret":
