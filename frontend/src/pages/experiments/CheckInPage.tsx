@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, ChevronLeft, Check, X, Sparkles } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Check, X } from 'lucide-react'
 import { experimentService } from '@/services/experimentService'
 import { Btn } from '@/components/common'
 import { C } from '@/app/theme'
@@ -184,35 +184,6 @@ export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => v
 
         {current.labels && (
           <div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
-              {[1, 2, 3, 4, 5].map((value) => {
-                const selected = answers[step] === value
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-label={`Select ${value} out of 5`}
-                    onClick={() => select(value)}
-                    style={{
-                      width: 34,
-                      height: 34,
-                      padding: 0,
-                      display: 'grid',
-                      placeItems: 'center',
-                      borderRadius: 10,
-                      border: `1px solid ${selected ? C.accB : C.br}`,
-                      background: selected ? C.accS : C.s1,
-                      color: selected ? C.acc : C.t4,
-                      cursor: 'pointer',
-                      transform: selected ? 'scale(1.12)' : 'scale(1)',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <Sparkles size={14 + value} strokeWidth={selected ? 2.4 : 1.8} />
-                  </button>
-                )
-              })}
-            </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 14 }}>
               {[1, 2, 3, 4, 5].map((v) => {
                 const sel = answers[step] === v
