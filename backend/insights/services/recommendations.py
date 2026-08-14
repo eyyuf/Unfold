@@ -1,5 +1,6 @@
-from typing import Dict, Any, Optional
-from experiments.models import Experiment, UserExperiment, ExperimentTraitWeight
+from typing import Any, Dict, Optional
+
+from experiments.models import Experiment, ExperimentTraitWeight, UserExperiment
 
 
 def get_contrast_recommendation(user, hypothesis) -> Optional[Dict[str, Any]]:
@@ -10,32 +11,37 @@ def get_contrast_recommendation(user, hypothesis) -> Optional[Dict[str, Any]]:
     target_trait = hypothesis.trait
 
     # Exclude already started / completed / abandoned user experiments
-    user_exp_ids = UserExperiment.objects.filter(user=user).values_list("experiment_id", flat=True)
+    user_exp_ids = UserExperiment.objects.filter(user=user).values_list(
+        "experiment_id", flat=True
+    )
 
     # Candidate experiments containing target trait
-    candidate_weights = ExperimentTraitWeight.objects.filter(
-        trait=target_trait,
-        experiment__published=True
-    ).exclude(experiment_id__in=user_exp_ids).select_related("experiment")
+    candidate_weights = (
+        ExperimentTraitWeight.objects.filter(
+            trait=target_trait, experiment__published=True
+        )
+        .exclude(experiment_id__in=user_exp_ids)
+        .select_related("experiment")
+    )
 
     if not candidate_weights.exists():
         return None
 
     # Gather user's completed experiments containing this target trait to measure trait overlap/novelty
     completed_exp_ids = UserExperiment.objects.filter(
-        user=user,
-        status="completed"
+        user=user, status="completed"
     ).values_list("experiment_id", flat=True)
 
     previously_tested_traits = set(
         ExperimentTraitWeight.objects.filter(
-            experiment_id__in=completed_exp_ids,
-            weight__gte=3
+            experiment_id__in=completed_exp_ids, weight__gte=3
         ).values_list("trait_id", flat=True)
     )
 
     completed_titles = list(
-        Experiment.objects.filter(id__in=completed_exp_ids).values_list("title", flat=True)
+        Experiment.objects.filter(id__in=completed_exp_ids).values_list(
+            "title", flat=True
+        )
     )
 
     scored_candidates = []
@@ -50,11 +56,23 @@ def get_contrast_recommendation(user, hypothesis) -> Optional[Dict[str, Any]]:
         target_strength = cw.weight
         exp_trait_weights = list(exp.trait_weights.exclude(trait=target_trait))
 
-        overlap_score = sum(1 for tw in exp_trait_weights if tw.trait_id in previously_tested_traits and tw.weight >= 3)
-        novel_trait_count = sum(1 for tw in exp_trait_weights if tw.trait_id not in previously_tested_traits and tw.weight >= 3)
+        overlap_score = sum(
+            1
+            for tw in exp_trait_weights
+            if tw.trait_id in previously_tested_traits and tw.weight >= 3
+        )
+        novel_trait_count = sum(
+            1
+            for tw in exp_trait_weights
+            if tw.trait_id not in previously_tested_traits and tw.weight >= 3
+        )
 
-        candidate_score = (target_strength * 4.0) + (novel_trait_count * 2.0) - (overlap_score * 1.5)
-        scored_candidates.append((candidate_score, exp, target_strength, novel_trait_count))
+        candidate_score = (
+            (target_strength * 4.0) + (novel_trait_count * 2.0) - (overlap_score * 1.5)
+        )
+        scored_candidates.append(
+            (candidate_score, exp, target_strength, novel_trait_count)
+        )
 
     if not scored_candidates:
         # Fallback to any published candidate with target trait if filtering was too strict

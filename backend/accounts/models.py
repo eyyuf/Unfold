@@ -1,8 +1,10 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
+
 class UserManager(BaseUserManager):
     use_in_migrations = True
+
     def create_user(self, email, password=None, **extra):
         if not email:
             raise ValueError("Email is required")
@@ -10,9 +12,11 @@ class UserManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self._db)
         return user
+
     def create_superuser(self, email, password=None, **extra):
         extra.update(is_staff=True, is_superuser=True)
         return self.create_user(email, password, **extra)
+
 
 class User(AbstractUser):
     username = None
@@ -35,7 +39,9 @@ class ConsentRecord(models.Model):
         TERMS = "terms", "Terms and privacy"
         ANALYTICS = "analytics", "Optional analytics"
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="consent_records")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="consent_records"
+    )
     kind = models.CharField(max_length=20, choices=Kind.choices)
     granted = models.BooleanField()
     policy_version = models.CharField(max_length=20, default="2026-07")

@@ -1,12 +1,11 @@
 import os
 from datetime import datetime, time, timedelta
 
+from accounts.models import ConsentRecord, User
+from checkins.models import CheckIn, FinalReflection
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
-
-from accounts.models import ConsentRecord, User
-from checkins.models import CheckIn, FinalReflection
 from experiments.models import Experiment, SavedExperiment, UserExperiment
 from insights.models import UserHypothesis
 from insights.services.hypotheses import recalculate_user_hypotheses
@@ -18,16 +17,22 @@ class Command(BaseCommand):
     help = "Creates or resets a safe, story-rich Builders' Lab demo account."
 
     def add_arguments(self, parser):
-        parser.add_argument("--email", default=os.environ.get("UNFOLD_DEMO_EMAIL", "demo@unfold.local"))
+        parser.add_argument(
+            "--email", default=os.environ.get("UNFOLD_DEMO_EMAIL", "demo@unfold.local")
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
         email = options["email"].strip().lower()
         password = os.environ.get("UNFOLD_DEMO_PASSWORD")
         if not password:
-            raise CommandError("Set UNFOLD_DEMO_PASSWORD before running seed_demo. No default demo password is stored in the repository.")
+            raise CommandError(
+                "Set UNFOLD_DEMO_PASSWORD before running seed_demo. No default demo password is stored in the repository."
+            )
         if len(password) < 8:
-            raise CommandError("UNFOLD_DEMO_PASSWORD must contain at least 8 characters.")
+            raise CommandError(
+                "UNFOLD_DEMO_PASSWORD must contain at least 8 characters."
+            )
 
         required_slugs = [
             "photography-walk",
@@ -36,14 +41,23 @@ class Command(BaseCommand):
             "teach-someone",
             "morning-nature-walk",
         ]
-        experiments = {item.slug: item for item in Experiment.objects.filter(slug__in=required_slugs, published=True)}
+        experiments = {
+            item.slug: item
+            for item in Experiment.objects.filter(
+                slug__in=required_slugs, published=True
+            )
+        }
         missing = sorted(set(required_slugs) - set(experiments))
         if missing:
             raise CommandError(
-                "Missing starter experiments: " + ", ".join(missing) + ". Run `python manage.py loaddata experiments` first."
+                "Missing starter experiments: "
+                + ", ".join(missing)
+                + ". Run `python manage.py loaddata experiments` first."
             )
         if any(not experiments[slug].trait_weights.exists() for slug in required_slugs):
-            raise CommandError("Starter trait weights are missing. Run `python manage.py seed_hypothesis_engine` first.")
+            raise CommandError(
+                "Starter trait weights are missing. Run `python manage.py seed_hypothesis_engine` first."
+            )
 
         user, _created = User.objects.get_or_create(email=email)
         user.display_name = "Alex Demo"
@@ -66,13 +80,27 @@ class Command(BaseCommand):
         SavedExperiment.objects.filter(user=user).delete()
         UserHypothesis.objects.filter(user=user).delete()
         ConsentRecord.objects.filter(user=user).delete()
-        ConsentRecord.objects.create(user=user, kind=ConsentRecord.Kind.TERMS, granted=True)
+        ConsentRecord.objects.create(
+            user=user, kind=ConsentRecord.Kind.TERMS, granted=True
+        )
 
         today = timezone.localdate()
         completed_specs = [
-            ("photography-walk", 35, "I became more observant and wanted to keep making visible work."),
-            ("write-one-page", 23, "Writing alone gave me energy once I stopped judging the output."),
-            ("code-a-small-project", 7, "Building a concrete tool held my attention and made progress feel tangible."),
+            (
+                "photography-walk",
+                35,
+                "I became more observant and wanted to keep making visible work.",
+            ),
+            (
+                "write-one-page",
+                23,
+                "Writing alone gave me energy once I stopped judging the output.",
+            ),
+            (
+                "code-a-small-project",
+                7,
+                "Building a concrete tool held my attention and made progress feel tangible.",
+            ),
         ]
         for offset, (slug, days_ago, summary) in enumerate(completed_specs):
             experiment = experiments[slug]
@@ -103,9 +131,13 @@ class Command(BaseCommand):
                     is_complete=True,
                 )
                 activity_date = run.start_date + timedelta(days=day - 1)
-                activity_at = timezone.make_aware(datetime.combine(activity_date, time(18, 0)))
+                activity_at = timezone.make_aware(
+                    datetime.combine(activity_date, time(18, 0))
+                )
                 CheckIn.objects.filter(pk=checkin.pk).update(created_at=activity_at)
-            FinalReflection.objects.create(user_experiment=run, repeat_intent=5, summary=summary)
+            FinalReflection.objects.create(
+                user_experiment=run, repeat_intent=5, summary=summary
+            )
             generate_trait_evidence(run)
 
         active_experiment = experiments["teach-someone"]
@@ -135,10 +167,14 @@ class Command(BaseCommand):
                 is_complete=True,
             )
             activity_date = active.start_date + timedelta(days=day - 1)
-            activity_at = timezone.make_aware(datetime.combine(activity_date, time(19, 0)))
+            activity_at = timezone.make_aware(
+                datetime.combine(activity_date, time(19, 0))
+            )
             CheckIn.objects.filter(pk=checkin.pk).update(created_at=activity_at)
 
-        SavedExperiment.objects.create(user=user, experiment=experiments["morning-nature-walk"])
+        SavedExperiment.objects.create(
+            user=user, experiment=experiments["morning-nature-walk"]
+        )
         hypotheses = recalculate_user_hypotheses(user)
         recommendation = None
         for hypothesis in hypotheses:
@@ -150,7 +186,11 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Demo account ready: {email}"))
         self.stdout.write(f"Completed experiments: {len(completed_specs)}")
-        self.stdout.write(f"Active experiment: {active_experiment.title} (day {active_experiment.duration_days} is ready for a live check-in)")
+        self.stdout.write(
+            f"Active experiment: {active_experiment.title} (day {active_experiment.duration_days} is ready for a live check-in)"
+        )
         self.stdout.write(f"Hypotheses: {len(hypotheses)}")
         if recommendation:
-            self.stdout.write(f"Next recommendation: {recommendation['recommended_experiment']['title']}")
+            self.stdout.write(
+                f"Next recommendation: {recommendation['recommended_experiment']['title']}"
+            )

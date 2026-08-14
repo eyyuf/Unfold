@@ -1,7 +1,7 @@
 import os
 
-from django.core.management.base import BaseCommand
 from accounts.models import User
+from django.core.management.base import BaseCommand
 from experiments.models import Experiment, ExperimentTrait, ExperimentTraitWeight
 from insights.models import PatternDefinition
 
@@ -15,38 +15,136 @@ class Command(BaseCommand):
         if admin_email and admin_password:
             admin_user, _created = User.objects.get_or_create(
                 email=admin_email,
-                defaults={"is_staff": True, "is_superuser": True, "display_name": "Admin"},
+                defaults={
+                    "is_staff": True,
+                    "is_superuser": True,
+                    "display_name": "Admin",
+                },
             )
             admin_user.is_staff = True
             admin_user.is_superuser = True
             admin_user.set_password(admin_password)
             admin_user.save()
-            self.stdout.write(self.style.SUCCESS(f"Environment-configured admin ready: {admin_email}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"Environment-configured admin ready: {admin_email}")
+            )
         elif admin_email or admin_password:
-            self.stdout.write(self.style.WARNING("Admin creation skipped: set both UNFOLD_ADMIN_EMAIL and UNFOLD_ADMIN_PASSWORD."))
+            self.stdout.write(
+                self.style.WARNING(
+                    "Admin creation skipped: set both UNFOLD_ADMIN_EMAIL and UNFOLD_ADMIN_PASSWORD."
+                )
+            )
         traits_data = [
-            ("creative", "Creative", "Creative activities repeatedly produce positive signals for you."),
-            ("technical", "Technical", "Technical & analytical tasks suit your problem-solving style."),
-            ("social", "Social", "Connecting and interacting with others boosts your energy."),
-            ("solitary", "Solitary", "Working independently allows you to focus deeply."),
-            ("collaborative", "Collaborative", "Co-creating in team settings resonates with you."),
-            ("teaching", "Teaching", "Explaining concepts to others produces positive signals."),
-            ("learning", "Learning", "Absorbing new knowledge and skills drives your curiosity."),
-            ("tangible_output", "Tangible Output", "You seem especially engaged when you create something with a visible final result."),
-            ("abstract_problem_solving", "Abstract Problem Solving", "Solving conceptual & logic problems fits your thinking style."),
-            ("leadership", "Leadership", "Guiding and directing activities resonates with you."),
-            ("service", "Service", "Helping and serving others provides a strong sense of meaning."),
-            ("physical", "Physical", "Physical activity and movement enhance your energy."),
-            ("outdoors", "Outdoors", "Activities taking place in nature produce positive signals."),
-            ("planning", "Planning", "Organizing and structuring plans fits your approach."),
-            ("storytelling", "Storytelling", "Crafting narratives and sharing ideas engages you."),
-            ("visual_creation", "Visual Creation", "Creating visual art or imagery brings strong satisfaction."),
-            ("writing", "Writing", "Expressing ideas through writing aligns well with your flow."),
-            ("speaking", "Speaking", "Verbal communication and presentation fit your strengths."),
-            ("building", "Building", "Constructing or coding structures gives you a sense of accomplishment."),
-            ("exploration", "Exploration", "Exploring new ideas or places sparks your curiosity."),
-            ("autonomy", "Autonomy", "Having freedom and control over your workflow produces positive energy."),
-            ("structured", "Structured", "Clear guidelines and structured routines help you stay consistent."),
+            (
+                "creative",
+                "Creative",
+                "Creative activities repeatedly produce positive signals for you.",
+            ),
+            (
+                "technical",
+                "Technical",
+                "Technical & analytical tasks suit your problem-solving style.",
+            ),
+            (
+                "social",
+                "Social",
+                "Connecting and interacting with others boosts your energy.",
+            ),
+            (
+                "solitary",
+                "Solitary",
+                "Working independently allows you to focus deeply.",
+            ),
+            (
+                "collaborative",
+                "Collaborative",
+                "Co-creating in team settings resonates with you.",
+            ),
+            (
+                "teaching",
+                "Teaching",
+                "Explaining concepts to others produces positive signals.",
+            ),
+            (
+                "learning",
+                "Learning",
+                "Absorbing new knowledge and skills drives your curiosity.",
+            ),
+            (
+                "tangible_output",
+                "Tangible Output",
+                "You seem especially engaged when you create something with a visible final result.",
+            ),
+            (
+                "abstract_problem_solving",
+                "Abstract Problem Solving",
+                "Solving conceptual & logic problems fits your thinking style.",
+            ),
+            (
+                "leadership",
+                "Leadership",
+                "Guiding and directing activities resonates with you.",
+            ),
+            (
+                "service",
+                "Service",
+                "Helping and serving others provides a strong sense of meaning.",
+            ),
+            (
+                "physical",
+                "Physical",
+                "Physical activity and movement enhance your energy.",
+            ),
+            (
+                "outdoors",
+                "Outdoors",
+                "Activities taking place in nature produce positive signals.",
+            ),
+            (
+                "planning",
+                "Planning",
+                "Organizing and structuring plans fits your approach.",
+            ),
+            (
+                "storytelling",
+                "Storytelling",
+                "Crafting narratives and sharing ideas engages you.",
+            ),
+            (
+                "visual_creation",
+                "Visual Creation",
+                "Creating visual art or imagery brings strong satisfaction.",
+            ),
+            (
+                "writing",
+                "Writing",
+                "Expressing ideas through writing aligns well with your flow.",
+            ),
+            (
+                "speaking",
+                "Speaking",
+                "Verbal communication and presentation fit your strengths.",
+            ),
+            (
+                "building",
+                "Building",
+                "Constructing or coding structures gives you a sense of accomplishment.",
+            ),
+            (
+                "exploration",
+                "Exploration",
+                "Exploring new ideas or places sparks your curiosity.",
+            ),
+            (
+                "autonomy",
+                "Autonomy",
+                "Having freedom and control over your workflow produces positive energy.",
+            ),
+            (
+                "structured",
+                "Structured",
+                "Clear guidelines and structured routines help you stay consistent.",
+            ),
         ]
 
         created_traits = {}
@@ -68,22 +166,49 @@ class Command(BaseCommand):
         # Trait weights for starter experiments
         experiment_weights = {
             "photography-walk": {
-                "creative": 5, "visual_creation": 5, "outdoors": 4, "tangible_output": 4, "exploration": 4, "solitary": 3
+                "creative": 5,
+                "visual_creation": 5,
+                "outdoors": 4,
+                "tangible_output": 4,
+                "exploration": 4,
+                "solitary": 3,
             },
             "write-one-page": {
-                "creative": 5, "writing": 5, "solitary": 4, "tangible_output": 4, "autonomy": 4, "storytelling": 3
+                "creative": 5,
+                "writing": 5,
+                "solitary": 4,
+                "tangible_output": 4,
+                "autonomy": 4,
+                "storytelling": 3,
             },
             "teach-someone": {
-                "teaching": 5, "service": 4, "social": 4, "speaking": 4, "learning": 3, "leadership": 2
+                "teaching": 5,
+                "service": 4,
+                "social": 4,
+                "speaking": 4,
+                "learning": 3,
+                "leadership": 2,
             },
             "code-a-small-project": {
-                "technical": 5, "abstract_problem_solving": 5, "learning": 4, "solitary": 4, "building": 2, "structured": 3
+                "technical": 5,
+                "abstract_problem_solving": 5,
+                "learning": 4,
+                "solitary": 4,
+                "building": 2,
+                "structured": 3,
             },
             "morning-nature-walk": {
-                "outdoors": 5, "physical": 3, "exploration": 4, "solitary": 4, "autonomy": 4
+                "outdoors": 5,
+                "physical": 3,
+                "exploration": 4,
+                "solitary": 4,
+                "autonomy": 4,
             },
             "strength-training": {
-                "physical": 5, "structured": 4, "autonomy": 3, "learning": 2
+                "physical": 5,
+                "structured": 4,
+                "autonomy": 3,
+                "learning": 2,
             },
         }
 
@@ -92,7 +217,9 @@ class Command(BaseCommand):
                 exp = Experiment.objects.get(slug=exp_slug)
             except Experiment.DoesNotExist:
                 # Try matching by partial slug
-                exp = Experiment.objects.filter(slug__icontains=exp_slug.split("-")[0]).first()
+                exp = Experiment.objects.filter(
+                    slug__icontains=exp_slug.split("-")[0]
+                ).first()
                 if not exp:
                     continue
 
@@ -103,7 +230,11 @@ class Command(BaseCommand):
                         trait=created_traits[trait_slug],
                         defaults={"weight": weight_val},
                     )
-            self.stdout.write(self.style.SUCCESS(f"Assigned trait weights to experiment '{exp.title}'"))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Assigned trait weights to experiment '{exp.title}'"
+                )
+            )
 
         # Seed PatternDefinitions
         pattern_configs = [
@@ -135,8 +266,14 @@ class Command(BaseCommand):
                     "is_active": True,
                 },
             )
-            matching_traits = [created_traits[ts] for ts in pconf["traits"] if ts in created_traits]
+            matching_traits = [
+                created_traits[ts] for ts in pconf["traits"] if ts in created_traits
+            ]
             pat.traits.set(matching_traits)
-            self.stdout.write(self.style.SUCCESS(f"Seeded pattern definition: '{pat.title}'"))
+            self.stdout.write(
+                self.style.SUCCESS(f"Seeded pattern definition: '{pat.title}'")
+            )
 
-        self.stdout.write(self.style.SUCCESS("Hypothesis engine seed completed successfully!"))
+        self.stdout.write(
+            self.style.SUCCESS("Hypothesis engine seed completed successfully!")
+        )

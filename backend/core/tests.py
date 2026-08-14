@@ -1,21 +1,28 @@
-from django.test import TestCase
-from django.utils import timezone
-from rest_framework.test import APIClient
-from unittest.mock import patch
 from datetime import timedelta
+from unittest.mock import patch
+
 from accounts.models import User
 from checkins.models import CheckIn
+from django.test import TestCase
+from django.utils import timezone
 from experiments.models import Category, Experiment
+from rest_framework.test import APIClient
 
 
 class ApiFlowTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        category = Category.objects.create(name="Creative", slug="creative", color="#8B5CF6")
+        category = Category.objects.create(
+            name="Creative", slug="creative", color="#8B5CF6"
+        )
         self.experiment = Experiment.objects.create(
-            category=category, title="Photography Walk", slug="photography-walk",
-            description="Notice the world through a camera.", duration_days=7,
-            minutes_per_day=20, published=True,
+            category=category,
+            title="Photography Walk",
+            slug="photography-walk",
+            description="Notice the world through a camera.",
+            duration_days=7,
+            minutes_per_day=20,
+            published=True,
         )
 
     def test_public_experiment_library(self):
@@ -51,7 +58,9 @@ class ApiFlowTests(TestCase):
     def test_authenticated_user_can_start_experiment_and_check_in(self):
         user = User.objects.create_user("person@example.com", "a-secure-password")
         self.client.force_authenticate(user)
-        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        started = self.client.post(
+            "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
         self.assertEqual(started.status_code, 201)
         checkin = self.client.post(
             f"/api/v1/user-experiments/{started.data['id']}/checkins/",
@@ -68,7 +77,9 @@ class ApiFlowTests(TestCase):
     def test_checkins_are_limited_to_active_experiment_plan(self):
         user = User.objects.create_user("bounds@example.com", "a-secure-password")
         self.client.force_authenticate(user)
-        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        started = self.client.post(
+            "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
         item_id = started.data["id"]
 
         too_early = self.client.post(
@@ -97,18 +108,32 @@ class ApiFlowTests(TestCase):
         self.assertEqual(after_completion.status_code, 404)
 
     def test_profile_activity_returns_checkin_streaks(self):
-        user = User.objects.create_user("streak@example.com", "a-secure-password", timezone="UTC")
+        user = User.objects.create_user(
+            "streak@example.com", "a-secure-password", timezone="UTC"
+        )
         self.client.force_authenticate(user)
-        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        started = self.client.post(
+            "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
         for day in (1, 2):
             self.client.post(
                 f"/api/v1/user-experiments/{started.data['id']}/checkins/",
-                {"day": day, "energy": 4, "curiosity": 4, "meaning": 4, "difficulty": 2},
+                {
+                    "day": day,
+                    "energy": 4,
+                    "curiosity": 4,
+                    "meaning": 4,
+                    "difficulty": 2,
+                },
                 format="json",
             )
         now = timezone.now()
-        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=1).update(created_at=now - timedelta(days=1))
-        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=2).update(created_at=now)
+        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=1).update(
+            created_at=now - timedelta(days=1)
+        )
+        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=2).update(
+            created_at=now
+        )
 
         response = self.client.get("/api/v1/profile/activity/")
 
@@ -134,12 +159,16 @@ class ApiFlowTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertTrue(User.objects.filter(email="new@example.com").exists())
         self.assertIn("_auth_user_id", self.client.session)
-        self.assertIsNotNone(User.objects.get(email="new@example.com").terms_accepted_at)
+        self.assertIsNotNone(
+            User.objects.get(email="new@example.com").terms_accepted_at
+        )
 
     def test_completion_report_insights_and_profile_update(self):
         user = User.objects.create_user("report@example.com", "a-secure-password")
         self.client.force_authenticate(user)
-        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        started = self.client.post(
+            "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
         item_id = started.data["id"]
         self.client.post(
             f"/api/v1/user-experiments/{item_id}/checkins/",
@@ -160,7 +189,11 @@ class ApiFlowTests(TestCase):
         self.assertEqual(insights.data["average_curiosity"], 5.0)
         self.assertEqual(insights.data["average_repeat_intent"], 100)
         self.assertEqual(insights.data["evidence_map"][0]["label"], "Photography Walk")
-        profile = self.client.patch("/api/v1/auth/me/", {"display_name": "Ari", "reminders_enabled": True}, format="json")
+        profile = self.client.patch(
+            "/api/v1/auth/me/",
+            {"display_name": "Ari", "reminders_enabled": True},
+            format="json",
+        )
         self.assertEqual(profile.data["display_name"], "Ari")
         self.assertTrue(profile.data["reminders_enabled"])
 
@@ -168,7 +201,9 @@ class ApiFlowTests(TestCase):
         user = User.objects.create_user("saved@example.com", "a-secure-password")
         self.client.force_authenticate(user)
 
-        saved = self.client.post("/api/v1/experiments/photography-walk/save/", {}, format="json")
+        saved = self.client.post(
+            "/api/v1/experiments/photography-walk/save/", {}, format="json"
+        )
         self.assertEqual(saved.status_code, 201)
         library = self.client.get("/api/v1/saved-experiments/")
         self.assertEqual(len(library.data), 1)
@@ -197,7 +232,9 @@ class ApiFlowTests(TestCase):
         self.assertTrue(user.reminders_enabled)
         self.assertEqual(user.reminder_time.strftime("%H:%M"), "18:45")
 
-        abandoned = self.client.post(f"/api/v1/user-experiments/{started.data['id']}/abandon/")
+        abandoned = self.client.post(
+            f"/api/v1/user-experiments/{started.data['id']}/abandon/"
+        )
         self.assertEqual(abandoned.status_code, 200)
         self.assertEqual(abandoned.data["status"], "abandoned")
         self.assertIsNone(self.client.get("/api/v1/user-experiments/active/").json())
@@ -205,13 +242,17 @@ class ApiFlowTests(TestCase):
     def test_report_endpoint_returns_the_requested_experiment(self):
         user = User.objects.create_user("reports@example.com", "a-secure-password")
         self.client.force_authenticate(user)
-        first = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        first = self.client.post(
+            "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
         self.client.post(
             f"/api/v1/user-experiments/{first.data['id']}/final-reflection/",
             {"repeat_intent": 4, "summary": "First report"},
             format="json",
         )
-        requested = self.client.get(f"/api/v1/user-experiments/{first.data['id']}/report/")
+        requested = self.client.get(
+            f"/api/v1/user-experiments/{first.data['id']}/report/"
+        )
         self.assertEqual(requested.status_code, 200)
         self.assertEqual(requested.data["id"], first.data["id"])
         self.assertEqual(requested.data["summary"], "First report")
@@ -221,7 +262,13 @@ class ApiFlowTests(TestCase):
         self.client.force_authenticate(user)
         response = self.client.patch(
             "/api/v1/auth/me/",
-            {"onboarding_answers": {"reason": "Explore", "available_time": "20 minutes", "interests": ["Creative"]}},
+            {
+                "onboarding_answers": {
+                    "reason": "Explore",
+                    "available_time": "20 minutes",
+                    "interests": ["Creative"],
+                }
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -229,10 +276,13 @@ class ApiFlowTests(TestCase):
 
     def test_password_reset_token_changes_password(self):
         user = User.objects.create_user("reset@example.com", "a-secure-password")
-        requested = self.client.post("/api/v1/auth/password-reset/", {"email": user.email}, format="json")
+        requested = self.client.post(
+            "/api/v1/auth/password-reset/", {"email": user.email}, format="json"
+        )
         self.assertEqual(requested.status_code, 200)
         self.assertIn("reset_url", requested.data)
         from urllib.parse import parse_qs, urlparse
+
         params = parse_qs(urlparse(requested.data["reset_url"]).query)
         confirmed = self.client.post(
             "/api/v1/auth/password-reset/confirm/",
@@ -248,19 +298,32 @@ class ApiFlowTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.check_password("a-new-secure-password"))
 
-    @patch.dict("os.environ", {"RESEND_API_KEY": "test-key", "DEFAULT_FROM_EMAIL": "Unfold <verified@example.com>"})
+    @patch.dict(
+        "os.environ",
+        {
+            "RESEND_API_KEY": "test-key",
+            "DEFAULT_FROM_EMAIL": "Unfold <verified@example.com>",
+        },
+    )
     @patch("core.views.logger.exception")
-    @patch("core.views.resend.Emails.send", side_effect=RuntimeError("provider rejected sender"))
+    @patch(
+        "core.views.resend.Emails.send",
+        side_effect=RuntimeError("provider rejected sender"),
+    )
     def test_password_reset_email_failure_does_not_return_500(self, _send, _log):
         user = User.objects.create_user("delivery@example.com", "a-secure-password")
-        response = self.client.post("/api/v1/auth/password-reset/", {"email": user.email}, format="json")
+        response = self.client.post(
+            "/api/v1/auth/password-reset/", {"email": user.email}, format="json"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn("If an account exists", response.data["detail"])
 
     def test_privacy_controls_export_consent_and_delete_account(self):
         user = User.objects.create_user("privacy@example.com", "a-secure-password")
         self.client.force_authenticate(user)
-        consent = self.client.patch("/api/v1/auth/me/", {"analytics_consent": True}, format="json")
+        consent = self.client.patch(
+            "/api/v1/auth/me/", {"analytics_consent": True}, format="json"
+        )
         self.assertEqual(consent.status_code, 200)
         self.assertTrue(consent.data["analytics_consent"])
 
@@ -274,10 +337,15 @@ class ApiFlowTests(TestCase):
         self.assertEqual(exported.data["profile"]["email"], user.email)
         self.assertIn("experiments", exported.data)
 
-        rejected = self.client.post("/api/v1/auth/delete-account/", {"confirmation": "delete"}, format="json")
+        rejected = self.client.post(
+            "/api/v1/auth/delete-account/", {"confirmation": "delete"}, format="json"
+        )
         self.assertEqual(rejected.status_code, 400)
-        deleted = self.client.post("/api/v1/auth/delete-account/", {"confirmation": "DELETE"}, format="json")
+        deleted = self.client.post(
+            "/api/v1/auth/delete-account/", {"confirmation": "DELETE"}, format="json"
+        )
         self.assertEqual(deleted.status_code, 204)
         self.assertFalse(User.objects.filter(pk=user.pk).exists())
+
 
 # Create your tests here.

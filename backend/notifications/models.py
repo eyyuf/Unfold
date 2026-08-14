@@ -1,5 +1,5 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 from experiments.models import UserExperiment
 
 
@@ -10,9 +10,12 @@ class ReminderDelivery(models.Model):
     sent_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["user", "user_experiment", "delivery_date"],
-            name="unique_daily_reminder",
-        )]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "user_experiment", "delivery_date"],
+                name="unique_daily_reminder",
+            )
+        ]
+
 
 # Create your models here.

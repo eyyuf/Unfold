@@ -1,5 +1,14 @@
 from django.contrib import admin
-from .models import Category, DailyTask, Experiment, ExperimentTrait, ExperimentTraitWeight, SavedExperiment, UserExperiment
+
+from .models import (
+    Category,
+    DailyTask,
+    Experiment,
+    ExperimentTrait,
+    ExperimentTraitWeight,
+    SavedExperiment,
+    UserExperiment,
+)
 
 
 class ExperimentTraitWeightInline(admin.TabularInline):
@@ -8,7 +17,13 @@ class ExperimentTraitWeightInline(admin.TabularInline):
 
 
 class ExperimentAdmin(admin.ModelAdmin):
-    list_display = ["title", "category", "duration_days", "minutes_per_day", "published"]
+    list_display = [
+        "title",
+        "category",
+        "duration_days",
+        "minutes_per_day",
+        "published",
+    ]
     list_filter = ["published", "category"]
     search_fields = ["title", "description"]
     prepopulated_fields = {"slug": ("title",)}

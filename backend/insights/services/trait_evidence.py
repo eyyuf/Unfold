@@ -1,6 +1,10 @@
 from decimal import Decimal
+
 from insights.models import TraitEvidence
-from insights.services.scoring import calculate_overall_fit, calculate_evidence_confidence
+from insights.services.scoring import (
+    calculate_evidence_confidence,
+    calculate_overall_fit,
+)
 
 
 def generate_trait_evidence(user_experiment) -> list:

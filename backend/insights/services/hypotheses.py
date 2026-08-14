@@ -1,4 +1,5 @@
 from decimal import Decimal
+
 from django.db.models import Count
 from experiments.models import ExperimentTrait
 from insights.models import TraitEvidence, UserHypothesis
@@ -11,8 +12,7 @@ def recalculate_user_hypotheses(user) -> list:
     """
     # Find all active traits that have evidence for this user
     evidence_traits = ExperimentTrait.objects.filter(
-        is_active=True,
-        user_evidence__user=user
+        is_active=True, user_evidence__user=user
     ).distinct()
 
     results = []
@@ -23,10 +23,15 @@ def recalculate_user_hypotheses(user) -> list:
 
         denom = sum(float(e.evidence_weight) for e in all_evidence)
         if denom > 0:
-            num = sum(float(e.fit_score) * float(e.evidence_weight) for e in all_evidence)
+            num = sum(
+                float(e.fit_score) * float(e.evidence_weight) for e in all_evidence
+            )
             support_score = round(num / denom, 2)
 
-            conf_num = sum(float(e.confidence_score) * float(e.evidence_weight) for e in all_evidence)
+            conf_num = sum(
+                float(e.confidence_score) * float(e.evidence_weight)
+                for e in all_evidence
+            )
             avg_evidence_conf = conf_num / denom
         else:
             support_score = 0.0
@@ -34,7 +39,9 @@ def recalculate_user_hypotheses(user) -> list:
 
         evidence_count = len(all_evidence)
         count_factor = min(evidence_count / 4.0, 1.0)
-        confidence_score = round(0.55 * avg_evidence_conf + 0.45 * (count_factor * 100.0), 2)
+        confidence_score = round(
+            0.55 * avg_evidence_conf + 0.45 * (count_factor * 100.0), 2
+        )
 
         # Status rules
         if evidence_count < 2:

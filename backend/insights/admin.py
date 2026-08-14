@@ -1,15 +1,32 @@
 from django.contrib import admin
+
 from .models import PatternDefinition, TraitEvidence, UserHypothesis
 
 
 class TraitEvidenceAdmin(admin.ModelAdmin):
-    list_display = ["user", "user_experiment", "trait", "fit_score", "confidence_score", "evidence_weight", "created_at"]
+    list_display = [
+        "user",
+        "user_experiment",
+        "trait",
+        "fit_score",
+        "confidence_score",
+        "evidence_weight",
+        "created_at",
+    ]
     list_filter = ["trait"]
     search_fields = ["user__email", "trait__name"]
 
 
 class UserHypothesisAdmin(admin.ModelAdmin):
-    list_display = ["user", "trait", "status", "support_score", "confidence_score", "evidence_count", "updated_at"]
+    list_display = [
+        "user",
+        "trait",
+        "status",
+        "support_score",
+        "confidence_score",
+        "evidence_count",
+        "updated_at",
+    ]
     list_filter = ["status", "trait"]
     search_fields = ["user__email", "trait__name"]
 
