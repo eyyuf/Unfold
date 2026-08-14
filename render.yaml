@@ -5,7 +5,7 @@ services:
   - type: web
     name: unfold
     runtime: python
-    buildCommand: ./build.sh
+    buildCommand: bash ./build.sh
     startCommand: gunicorn --chdir backend config.wsgi:application
     healthCheckPath: /api/v1/health/
     envVars:
@@ -21,15 +21,17 @@ services:
         value: "22.22.0"
       - key: ALLOWED_HOSTS
         value: ".onrender.com,localhost"
-      - key: CSRF_TRUSTED_ORIGINS
-        value: "https://unfold.onrender.com"
       - key: SITE_URL
-        value: "https://unfold.onrender.com"
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
       - key: SENTRY_DSN
+        sync: false
+      - key: UNFOLD_DEMO_EMAIL
+        sync: false
+      - key: UNFOLD_DEMO_PASSWORD
         sync: false
   - type: cron
     name: unfold-reminders
@@ -49,4 +51,4 @@ services:
       - key: DEFAULT_FROM_EMAIL
         sync: false
       - key: SITE_URL
-        value: "https://unfold.onrender.com"
+        sync: false

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
 from django.http import JsonResponse
+from django.db import connection
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.encoding import force_str
@@ -52,7 +53,14 @@ logger = logging.getLogger(__name__)
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def health_view(request):
-    return Response({"status": "ok"})
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except Exception:
+        logger.exception("Health check database probe failed")
+        return Response({"status": "unavailable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    return Response({"status": "ok", "database": "ok"})
 
 
 @api_view(["GET"])
