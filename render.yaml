@@ -16,11 +16,11 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
-        value: "False"
+        value: 'False'
       - key: NODE_VERSION
-        value: "22.22.0"
+        value: '22.22.0'
       - key: ALLOWED_HOSTS
-        value: ".onrender.com,localhost"
+        value: '.onrender.com,localhost'
       - key: SITE_URL
         sync: false
       - key: RESEND_API_KEY
@@ -36,7 +36,7 @@ services:
   - type: cron
     name: unfold-reminders
     runtime: python
-    schedule: "0 * * * *"
+    schedule: '0 * * * *'
     buildCommand: python -m pip install -r backend/requirements.txt
     startCommand: python backend/manage.py send_due_reminders
     envVars:
@@ -47,7 +47,7 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: DEBUG
-        value: "False"
+        value: 'False'
       - key: RESEND_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
