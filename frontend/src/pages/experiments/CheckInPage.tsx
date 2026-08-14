@@ -2,17 +2,23 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, ChevronLeft, Check, X } from 'lucide-react'
 import { experimentService } from '@/services/experimentService'
-import { Btn } from '@/components/common'
+import { Btn, Card, LoadingBlock } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
 import { useActiveExperiment } from '@/hooks/useActiveExperiment'
+
+function formatCalendarDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(
+    new Date(`${value}T00:00:00`),
+  )
+}
 
 export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [notes, setNotes] = useState('')
   const [draftLoaded, setDraftLoaded] = useState(false)
-  const { data: active } = useActiveExperiment()
+  const { data: active, isPending } = useActiveExperiment()
   const queryClient = useQueryClient()
   const draftKey = active ? `unfold-checkin-draft-${active.id}-${active.current_day}` : ''
   useEffect(() => {
@@ -36,7 +42,6 @@ export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => v
     mutationFn: () => {
       if (!active) throw new Error('Start an experiment before checking in.')
       return experimentService.submitCheckIn(active.id, {
-        day: active.current_day,
         enjoyment: answers[1] ?? 3,
         energy_after: answers[2] ?? 3,
         curiosity: answers[3] ?? 3,
@@ -80,6 +85,54 @@ export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => v
     setTimeout(
       () => (step < total - 1 ? setStep((s) => s + 1) : setScreen('checkin-done')),
       current.type === 'note' ? 0 : 320,
+    )
+  }
+
+  if (isPending) return <LoadingBlock label="Checking today's availability…" />
+
+  if (!active) {
+    return (
+      <Card style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center' }}>
+        <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>
+          No active experiment
+        </h1>
+        <p style={{ color: C.t3, marginBottom: 20 }}>Start an experiment before checking in.</p>
+        <Btn onClick={() => setScreen('library')}>Explore experiments</Btn>
+      </Card>
+    )
+  }
+
+  if (!active.can_check_in_today) {
+    const startsLater = active.current_day < 1
+    const windowComplete = active.current_day > active.experiment.duration_days
+    const title = active.today_checkin_complete
+      ? "Today's check-in is complete."
+      : startsLater
+        ? 'This experiment has not started yet.'
+        : windowComplete
+          ? 'This experiment window is complete.'
+          : "Today's check-in is unavailable."
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <Card style={{ width: '100%', maxWidth: 520, textAlign: 'center', padding: 32 }}>
+          <Check size={30} color={C.acc} style={{ marginBottom: 16 }} />
+          <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>
+            {title}
+          </h1>
+          <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 22 }}>
+            {active.today_checkin_complete && active.next_checkin_date
+              ? `Your next check-in will be available tomorrow, ${formatCalendarDate(active.next_checkin_date)}.`
+              : startsLater && active.next_checkin_date
+                ? `Your first check-in will be available on ${formatCalendarDate(active.next_checkin_date)}.`
+                : windowComplete
+                  ? 'Missed days remain unfilled. You can continue to your final reflection.'
+                  : 'Return to your experiment dashboard for the latest status.'}
+          </p>
+          <Btn onClick={() => setScreen(active.can_complete ? 'reflection' : 'home')}>
+            {active.can_complete ? 'Complete final reflection' : 'Back to home'}
+          </Btn>
+        </Card>
+      </div>
     )
   }
 

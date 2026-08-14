@@ -1,15 +1,14 @@
 import logging
 import os
 from collections import Counter
-from datetime import timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import date, timedelta
 
 import resend
 from accounts.models import ConsentRecord, User
 from checkins.models import CheckIn, FinalReflection
 from django.contrib.auth import login, logout
 from django.contrib.auth.tokens import default_token_generator
-from django.db import connection
+from django.db import connection, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -72,20 +71,13 @@ def health_view(request):
 
 @api_view(["GET"])
 def profile_activity(request):
-    try:
-        user_zone = ZoneInfo(request.user.timezone or "UTC")
-    except ZoneInfoNotFoundError:
-        user_zone = ZoneInfo("UTC")
-
-    timestamps = CheckIn.objects.filter(
+    checkin_dates = CheckIn.objects.filter(
         user_experiment__user=request.user,
         is_complete=True,
-    ).values_list("created_at", flat=True)
-    counts = Counter(
-        timezone.localtime(timestamp, user_zone).date() for timestamp in timestamps
-    )
+    ).values_list("checkin_date", flat=True)
+    counts = Counter(checkin_dates)
     ordered_dates = sorted(counts)
-    today = timezone.localtime(timezone.now(), user_zone).date()
+    today = timezone.localdate()
 
     current_streak = 0
     if ordered_dates and ordered_dates[-1] >= today - timedelta(days=1):
@@ -346,12 +338,31 @@ def start_experiment(request, slug):
             },
             status=status.HTTP_409_CONFLICT,
         )
+    today = timezone.localdate()
+    requested_start_date = request.data.get("start_date")
+    try:
+        start_date = (
+            date.fromisoformat(str(requested_start_date))
+            if requested_start_date
+            else today
+        )
+    except ValueError:
+        return Response(
+            {"detail": "Start date must be a valid calendar date."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if start_date < today:
+        return Response(
+            {"detail": "Start date cannot be in the past."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     active, created = UserExperiment.objects.get_or_create(
         user=request.user,
         experiment=experiment,
         status="active",
         defaults={
-            "start_date": request.data.get("start_date", timezone.localdate()),
+            "start_date": start_date,
             "reason": request.data.get("reason", ""),
         },
     )
@@ -419,39 +430,103 @@ def abandon_experiment(request, pk):
     return Response(report_for(item))
 
 
+def _already_checked_in_response():
+    return Response(
+        {"detail": "You have already completed today's check-in."},
+        status=status.HTTP_409_CONFLICT,
+    )
+
+
+def _validate_checkin_timing(item, supplied_day=None):
+    today = timezone.localdate()
+    expected_day = item.get_timing_status(today)["calendar_day"]
+    if expected_day < 1:
+        return (
+            today,
+            expected_day,
+            Response(
+                {"detail": "This experiment has not started yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    if expected_day > item.experiment.duration_days:
+        return (
+            today,
+            expected_day,
+            Response(
+                {"detail": "The check-in window for this experiment has ended."},
+                status=status.HTTP_400_BAD_REQUEST,
+            ),
+        )
+    if supplied_day is not None:
+        try:
+            supplied_day = int(supplied_day)
+        except (TypeError, ValueError):
+            return (
+                today,
+                expected_day,
+                Response(
+                    {"detail": "Day must be a number."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+        if supplied_day != expected_day:
+            return (
+                today,
+                expected_day,
+                Response(
+                    {
+                        "detail": f"Only today's experiment day (Day {expected_day}) can be checked in."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+            )
+    return today, expected_day, None
+
+
 @api_view(["POST"])
 def submit_checkin(request, pk):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
+    supplied_day = request.data.get("day")
+    _today, _expected_day, timing_error = _validate_checkin_timing(item, supplied_day)
+    if timing_error:
+        return timing_error
     serializer = CheckInSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    day = serializer.validated_data.get("day", 1)
-    if day < 1 or day > item.experiment.duration_days:
-        return Response(
-            {"detail": "This day is outside the experiment plan."},
-            status=status.HTTP_400_BAD_REQUEST,
+    with transaction.atomic():
+        item = (
+            UserExperiment.objects.select_for_update()
+            .select_related("experiment")
+            .get(pk=item.pk)
         )
-    checkin_data = dict(serializer.validated_data)
-    checkin_data["is_complete"] = True
-    checkin, _ = CheckIn.objects.update_or_create(
-        user_experiment=item, day=checkin_data["day"], defaults=checkin_data
-    )
+        today, expected_day, timing_error = _validate_checkin_timing(item, supplied_day)
+        if timing_error:
+            return timing_error
+        checkin = item.checkins.filter(checkin_date=today).first()
+        if checkin and checkin.is_complete:
+            return _already_checked_in_response()
+        if checkin is None:
+            checkin = item.checkins.filter(day=expected_day).first()
+        if checkin and checkin.is_complete:
+            return _already_checked_in_response()
+        if checkin is None:
+            checkin = CheckIn(user_experiment=item)
+        checkin.day = expected_day
+        checkin.checkin_date = today
+        for field, value in serializer.validated_data.items():
+            setattr(checkin, field, value)
+        checkin.is_complete = True
+        checkin.save()
     return Response(CheckInSerializer(checkin).data)
 
 
 @api_view(["POST"])
 def start_checkin(request, pk):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
-    try:
-        day_number = int(request.data.get("day_number", 1))
-    except (ValueError, TypeError):
-        return Response(
-            {"detail": "Day must be a number."}, status=status.HTTP_400_BAD_REQUEST
-        )
-    if day_number < 1 or day_number > item.experiment.duration_days:
-        return Response(
-            {"detail": "This day is outside the experiment plan."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    supplied_day = request.data.get("day_number")
+    _today, _expected_day, timing_error = _validate_checkin_timing(item, supplied_day)
+    if timing_error:
+        return timing_error
     motivation_before = request.data.get("motivation_before")
     if motivation_before is not None:
         try:
@@ -460,14 +535,33 @@ def start_checkin(request, pk):
         except (ValueError, TypeError):
             motivation_before = 3
 
-    checkin, _ = CheckIn.objects.get_or_create(
-        user_experiment=item,
-        day=day_number,
-        defaults={"motivation_before": motivation_before},
-    )
-    if motivation_before is not None and checkin.motivation_before != motivation_before:
-        checkin.motivation_before = motivation_before
-        checkin.save(update_fields=["motivation_before"])
+    with transaction.atomic():
+        item = (
+            UserExperiment.objects.select_for_update()
+            .select_related("experiment")
+            .get(pk=item.pk)
+        )
+        today, expected_day, timing_error = _validate_checkin_timing(item, supplied_day)
+        if timing_error:
+            return timing_error
+        checkin = item.checkins.filter(checkin_date=today).first()
+        if checkin and checkin.is_complete:
+            return _already_checked_in_response()
+        if checkin is None:
+            checkin = item.checkins.filter(day=expected_day).first()
+        if checkin and checkin.is_complete:
+            return _already_checked_in_response()
+        if checkin is None:
+            checkin = CheckIn(
+                user_experiment=item,
+                day=expected_day,
+                checkin_date=today,
+            )
+        if motivation_before is not None:
+            checkin.motivation_before = motivation_before
+        checkin.day = expected_day
+        checkin.checkin_date = today
+        checkin.save()
 
     return Response(CheckInSerializer(checkin).data)
 
@@ -475,16 +569,41 @@ def start_checkin(request, pk):
 @api_view(["PATCH"])
 def update_checkin_patch(request, pk, checkin_id):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
-    checkin = get_object_or_404(CheckIn, pk=checkin_id, user_experiment=item)
-    serializer = CheckInSerializer(checkin, data=request.data, partial=True)
-    serializer.is_valid(raise_exception=True)
-    updated = serializer.save(is_complete=True)
+    supplied_day = request.data.get("day")
+    with transaction.atomic():
+        item = (
+            UserExperiment.objects.select_for_update()
+            .select_related("experiment")
+            .get(pk=item.pk)
+        )
+        today, expected_day, timing_error = _validate_checkin_timing(item, supplied_day)
+        if timing_error:
+            return timing_error
+        checkin = get_object_or_404(CheckIn, pk=checkin_id, user_experiment=item)
+        if checkin.is_complete:
+            return _already_checked_in_response()
+        if checkin.checkin_date != today or checkin.day != expected_day:
+            return Response(
+                {"detail": "This check-in is no longer available."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = CheckInSerializer(checkin, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save(is_complete=True)
     return Response(CheckInSerializer(updated).data)
 
 
 @api_view(["POST"])
 def final_reflection(request, pk):
     item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
+    timing = item.get_timing_status()
+    if not timing["can_complete"]:
+        return Response(
+            {
+                "detail": "The final reflection becomes available when the experiment window is complete."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     serializer = FinalReflectionSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     reflection, _ = FinalReflection.objects.update_or_create(
@@ -512,7 +631,7 @@ def evidence_vault(request):
 
 
 def report_for(item):
-    checkins = list(item.checkins.all())
+    checkins = list(item.checkins.filter(is_complete=True))
     count = len(checkins)
 
     overall_fit = calculate_overall_fit(item)

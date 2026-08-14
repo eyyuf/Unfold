@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from experiments.models import UserExperiment
 
 
@@ -20,6 +21,7 @@ class CheckIn(models.Model):
     minutes_spent = models.PositiveSmallIntegerField(null=True, blank=True)
     notes = models.TextField(blank=True)
     is_complete = models.BooleanField(default=False)
+    checkin_date = models.DateField(default=timezone.localdate)
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -30,7 +32,11 @@ class CheckIn(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["user_experiment", "day"], name="unique_daily_checkin"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["user_experiment", "checkin_date"],
+                name="unique_experiment_checkin_date",
+            ),
         ]
 
 

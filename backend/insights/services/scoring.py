@@ -75,9 +75,6 @@ def calculate_evidence_confidence(user_experiment: Any) -> Tuple[float, str]:
     """Calculate evidence confidence score (0-100) and human-readable label."""
     expected = max(1, user_experiment.experiment.duration_days)
     completed_checkins = user_experiment.checkins.filter(is_complete=True).count()
-    if not completed_checkins:
-        # Fallback to total checkins if is_complete isn't set yet
-        completed_checkins = user_experiment.checkins.count()
 
     checkin_ratio = min(1.0, completed_checkins / expected)
 
@@ -110,7 +107,7 @@ def calculate_evidence_confidence(user_experiment: Any) -> Tuple[float, str]:
 
 def calculate_overall_fit(user_experiment: Any) -> float:
     """Calculate overall experiment fit score (0-100)."""
-    checkins = list(user_experiment.checkins.all())
+    checkins = list(user_experiment.checkins.filter(is_complete=True))
     expected_minutes = user_experiment.experiment.minutes_per_day or 20
     expected_days = max(1, user_experiment.experiment.duration_days)
 
@@ -120,9 +117,7 @@ def calculate_overall_fit(user_experiment: Any) -> float:
     else:
         avg_daily_fit = 0.0
 
-    completed_count = user_experiment.checkins.filter(is_complete=True).count() or len(
-        checkins
-    )
+    completed_count = len(checkins)
     consistency = min(100.0, (completed_count / expected_days) * 100.0)
 
     has_reflection = (

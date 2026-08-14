@@ -1,11 +1,12 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from accounts.models import User
 from checkins.models import CheckIn
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
-from experiments.models import Category, Experiment
+from experiments.models import Category, Experiment, UserExperiment
 from rest_framework.test import APIClient
 
 
@@ -71,7 +72,9 @@ class ApiFlowTests(TestCase):
         self.assertEqual(checkin.data["curiosity"], 5)
         active = self.client.get("/api/v1/user-experiments/active/")
         self.assertEqual(active.data["checkin_count"], 1)
-        self.assertEqual(active.data["current_day"], 2)
+        self.assertEqual(active.data["current_day"], 1)
+        self.assertTrue(active.data["today_checkin_complete"])
+        self.assertFalse(active.data["can_check_in_today"])
         self.assertEqual(active.data["recent_checkins"][0]["curiosity"], 5)
 
     def test_checkins_are_limited_to_active_experiment_plan(self):
@@ -95,17 +98,18 @@ class ApiFlowTests(TestCase):
         self.assertEqual(too_early.status_code, 400)
         self.assertEqual(too_late.status_code, 400)
 
-        self.client.post(
+        premature_reflection = self.client.post(
             f"/api/v1/user-experiments/{item_id}/final-reflection/",
             {"repeat_intent": 4, "summary": "Useful evidence."},
             format="json",
         )
-        after_completion = self.client.post(
+        future_day = self.client.post(
             f"/api/v1/user-experiments/{item_id}/checkins/",
             {"day": 2, "curiosity": 4},
             format="json",
         )
-        self.assertEqual(after_completion.status_code, 404)
+        self.assertEqual(premature_reflection.status_code, 400)
+        self.assertEqual(future_day.status_code, 400)
 
     def test_profile_activity_returns_checkin_streaks(self):
         user = User.objects.create_user(
@@ -115,25 +119,26 @@ class ApiFlowTests(TestCase):
         started = self.client.post(
             "/api/v1/experiments/photography-walk/start/", {}, format="json"
         )
-        for day in (1, 2):
-            self.client.post(
-                f"/api/v1/user-experiments/{started.data['id']}/checkins/",
-                {
-                    "day": day,
-                    "energy": 4,
-                    "curiosity": 4,
-                    "meaning": 4,
-                    "difficulty": 2,
-                },
-                format="json",
-            )
-        now = timezone.now()
-        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=1).update(
-            created_at=now - timedelta(days=1)
+        today = timezone.localdate()
+        UserExperiment.objects.filter(pk=started.data["id"]).update(
+            start_date=today - timedelta(days=1)
         )
-        CheckIn.objects.filter(user_experiment_id=started.data["id"], day=2).update(
-            created_at=now
-        )
+        for day, checkin_date in (
+            (1, today - timedelta(days=1)),
+            (2, today),
+        ):
+            with patch("core.views.timezone.localdate", return_value=checkin_date):
+                self.client.post(
+                    f"/api/v1/user-experiments/{started.data['id']}/checkins/",
+                    {
+                        "day": day,
+                        "energy_after": 4,
+                        "curiosity": 4,
+                        "meaning": 4,
+                        "difficulty": 2,
+                    },
+                    format="json",
+                )
 
         response = self.client.get("/api/v1/profile/activity/")
 
@@ -170,9 +175,18 @@ class ApiFlowTests(TestCase):
             "/api/v1/experiments/photography-walk/start/", {}, format="json"
         )
         item_id = started.data["id"]
+        UserExperiment.objects.filter(pk=item_id).update(
+            start_date=timezone.localdate() - timedelta(days=6)
+        )
         self.client.post(
             f"/api/v1/user-experiments/{item_id}/checkins/",
-            {"day": 1, "energy": 4, "curiosity": 5, "meaning": 4, "difficulty": 2},
+            {
+                "day": 7,
+                "energy_after": 4,
+                "curiosity": 5,
+                "meaning": 4,
+                "difficulty": 2,
+            },
             format="json",
         )
         completed = self.client.post(
@@ -219,7 +233,7 @@ class ApiFlowTests(TestCase):
         started = self.client.post(
             "/api/v1/experiments/photography-walk/start/",
             {
-                "start_date": "2026-08-01",
+                "start_date": timezone.localdate().isoformat(),
                 "reason": "I want to notice more.",
                 "reminders_enabled": True,
                 "reminder_time": "18:45",
@@ -244,6 +258,9 @@ class ApiFlowTests(TestCase):
         self.client.force_authenticate(user)
         first = self.client.post(
             "/api/v1/experiments/photography-walk/start/", {}, format="json"
+        )
+        UserExperiment.objects.filter(pk=first.data["id"]).update(
+            start_date=timezone.localdate() - timedelta(days=7)
         )
         self.client.post(
             f"/api/v1/user-experiments/{first.data['id']}/final-reflection/",
@@ -349,3 +366,125 @@ class ApiFlowTests(TestCase):
 
 
 # Create your tests here.
+
+
+class CheckInCalendarTimingTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            "calendar@example.com", "a-secure-password"
+        )
+        self.client.force_authenticate(self.user)
+        category = Category.objects.create(
+            name="Calendar", slug="calendar", color="#22C55E"
+        )
+        self.experiment = Experiment.objects.create(
+            category=category,
+            title="Calendar Experiment",
+            slug="calendar-experiment",
+            description="A real seven-day experiment.",
+            duration_days=7,
+            minutes_per_day=20,
+            published=True,
+        )
+        self.start_date = date(2026, 8, 14)
+        self.item = UserExperiment.objects.create(
+            user=self.user,
+            experiment=self.experiment,
+            start_date=self.start_date,
+        )
+        self.checkin_url = f"/api/v1/user-experiments/{self.item.id}/checkins/"
+
+    def submit_on(self, checkin_date, payload=None):
+        with patch("core.views.timezone.localdate", return_value=checkin_date):
+            return self.client.post(
+                self.checkin_url,
+                payload or {"curiosity": 4, "meaning": 4},
+                format="json",
+            )
+
+    def test_same_day_duplicate_is_rejected(self):
+        first = self.submit_on(self.start_date)
+        duplicate = self.submit_on(self.start_date)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(
+            duplicate.data["detail"], "You have already completed today's check-in."
+        )
+        self.assertEqual(self.item.checkins.count(), 1)
+
+    def test_future_day_spoofing_is_rejected(self):
+        response = self.submit_on(self.start_date, {"day": 2, "curiosity": 4})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Day 1", response.data["detail"])
+        self.assertFalse(self.item.checkins.exists())
+
+    def test_next_calendar_day_accepts_day_two(self):
+        day_one = self.submit_on(self.start_date, {"day": 1, "curiosity": 4})
+        next_date = self.start_date + timedelta(days=1)
+        day_two = self.submit_on(next_date, {"day": 2, "curiosity": 5})
+
+        self.assertEqual(day_one.status_code, 200)
+        self.assertEqual(day_two.status_code, 200)
+        self.assertEqual(
+            list(self.item.checkins.order_by("day").values_list("day", "checkin_date")),
+            [(1, self.start_date), (2, next_date)],
+        )
+
+    def test_missed_day_cannot_be_backfilled(self):
+        self.submit_on(self.start_date, {"day": 1, "curiosity": 4})
+        day_three_date = self.start_date + timedelta(days=2)
+
+        backfill = self.submit_on(day_three_date, {"day": 2, "curiosity": 4})
+        current = self.submit_on(day_three_date, {"curiosity": 5})
+        with patch("core.views.timezone.localdate", return_value=day_three_date):
+            active = self.client.get("/api/v1/user-experiments/active/")
+
+        self.assertEqual(backfill.status_code, 400)
+        self.assertEqual(current.status_code, 200)
+        self.assertEqual(active.data["current_day"], 3)
+        self.assertEqual(active.data["completed_days"], [1, 3])
+
+    def test_day_eight_is_outside_the_checkin_window(self):
+        day_eight = self.start_date + timedelta(days=7)
+        response = self.submit_on(day_eight, {"day": 8, "curiosity": 4})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("window", response.data["detail"])
+        self.assertFalse(self.item.checkins.exists())
+
+    def test_final_reflection_is_blocked_on_day_one(self):
+        self.submit_on(self.start_date, {"day": 1, "curiosity": 4})
+        self.submit_on(self.start_date, {"day": 2, "curiosity": 4})
+        with patch("core.views.timezone.localdate", return_value=self.start_date):
+            reflection = self.client.post(
+                f"/api/v1/user-experiments/{self.item.id}/final-reflection/",
+                {"repeat_intent": 5, "summary": "Too early."},
+                format="json",
+            )
+
+        self.item.refresh_from_db()
+        self.assertEqual(reflection.status_code, 400)
+        self.assertEqual(self.item.status, UserExperiment.Status.ACTIVE)
+        self.assertFalse(hasattr(self.item, "final_reflection"))
+        self.assertEqual(self.item.checkins.count(), 1)
+
+    def test_database_rejects_two_days_on_the_same_checkin_date(self):
+        CheckIn.objects.create(
+            user_experiment=self.item,
+            day=1,
+            checkin_date=self.start_date,
+            is_complete=True,
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            CheckIn.objects.create(
+                user_experiment=self.item,
+                day=2,
+                checkin_date=self.start_date,
+                is_complete=True,
+            )
+
+        self.assertEqual(self.item.checkins.count(), 1)

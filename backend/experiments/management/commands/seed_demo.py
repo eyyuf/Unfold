@@ -88,31 +88,35 @@ class Command(BaseCommand):
         completed_specs = [
             (
                 "photography-walk",
-                35,
+                29,
                 "I became more observant and wanted to keep making visible work.",
             ),
             (
                 "write-one-page",
-                23,
+                15,
                 "Writing alone gave me energy once I stopped judging the output.",
             ),
             (
                 "code-a-small-project",
-                7,
+                2,
                 "Building a concrete tool held my attention and made progress feel tangible.",
             ),
         ]
-        for offset, (slug, days_ago, summary) in enumerate(completed_specs):
+        for slug, completed_days_ago, summary in completed_specs:
             experiment = experiments[slug]
+            start_date = today - timedelta(
+                days=completed_days_ago + experiment.duration_days - 1
+            )
             run = UserExperiment.objects.create(
                 user=user,
                 experiment=experiment,
                 status=UserExperiment.Status.COMPLETED,
-                start_date=today - timedelta(days=days_ago),
+                start_date=start_date,
                 reason="Test whether focused, independent creation produces repeatable positive signals.",
             )
             for day in range(1, experiment.duration_days + 1):
                 value = 4 if day % 4 == 0 else 5
+                activity_date = run.start_date + timedelta(days=day - 1)
                 checkin = CheckIn.objects.create(
                     user_experiment=run,
                     day=day,
@@ -129,8 +133,8 @@ class Command(BaseCommand):
                     minutes_spent=experiment.minutes_per_day,
                     notes=f"Day {day}: I noticed steady curiosity and satisfaction from making progress.",
                     is_complete=True,
+                    checkin_date=activity_date,
                 )
-                activity_date = run.start_date + timedelta(days=day - 1)
                 activity_at = timezone.make_aware(
                     datetime.combine(activity_date, time(18, 0))
                 )
@@ -145,10 +149,11 @@ class Command(BaseCommand):
             user=user,
             experiment=active_experiment,
             status=UserExperiment.Status.ACTIVE,
-            start_date=today - timedelta(days=active_experiment.duration_days - 2),
+            start_date=today - timedelta(days=active_experiment.duration_days - 1),
             reason="Test whether sharing what I know feels as energizing as making things alone.",
         )
         for day in range(1, active_experiment.duration_days):
+            activity_date = active.start_date + timedelta(days=day - 1)
             checkin = CheckIn.objects.create(
                 user_experiment=active,
                 day=day,
@@ -165,8 +170,8 @@ class Command(BaseCommand):
                 minutes_spent=active_experiment.minutes_per_day,
                 notes=f"Day {day}: Explaining the idea felt meaningful and clarified my own thinking.",
                 is_complete=True,
+                checkin_date=activity_date,
             )
-            activity_date = active.start_date + timedelta(days=day - 1)
             activity_at = timezone.make_aware(
                 datetime.combine(activity_date, time(19, 0))
             )

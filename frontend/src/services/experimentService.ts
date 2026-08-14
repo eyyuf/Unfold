@@ -39,10 +39,10 @@ export const experimentService = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  startCheckIn: (id: number, dayNumber: number, motivationBefore: number) =>
+  startCheckIn: (id: number, motivationBefore: number) =>
     apiRequest(`/user-experiments/${id}/checkins/start/`, {
       method: 'POST',
-      body: JSON.stringify({ day_number: dayNumber, motivation_before: motivationBefore }),
+      body: JSON.stringify({ motivation_before: motivationBefore }),
     }),
   submitCheckIn: (id: number, input: CheckInInput) =>
     apiRequest(`/user-experiments/${id}/checkins/`, {

@@ -169,6 +169,11 @@ class UserExperimentSerializer(serializers.ModelSerializer):
     experiment = ExperimentSerializer(read_only=True)
     checkin_count = serializers.SerializerMethodField()
     current_day = serializers.SerializerMethodField()
+    completed_days = serializers.SerializerMethodField()
+    today_checkin_complete = serializers.SerializerMethodField()
+    can_check_in_today = serializers.SerializerMethodField()
+    can_complete = serializers.SerializerMethodField()
+    next_checkin_date = serializers.SerializerMethodField()
     recent_checkins = serializers.SerializerMethodField()
 
     class Meta:
@@ -177,11 +182,31 @@ class UserExperimentSerializer(serializers.ModelSerializer):
         read_only_fields = ["user", "status"]
 
     def get_checkin_count(self, obj):
-        return obj.checkins.filter(is_complete=True).count() or obj.checkins.count()
+        return obj.checkins.filter(is_complete=True).count()
+
+    def _timing(self, obj):
+        if not hasattr(obj, "_serialized_timing_status"):
+            obj._serialized_timing_status = obj.get_timing_status()
+        return obj._serialized_timing_status
 
     def get_current_day(self, obj):
-        completed = obj.checkins.filter(is_complete=True).count()
-        return min(completed + 1, obj.experiment.duration_days)
+        return self._timing(obj)["calendar_day"]
+
+    def get_completed_days(self, obj):
+        return self._timing(obj)["completed_days"]
+
+    def get_today_checkin_complete(self, obj):
+        return self._timing(obj)["today_checkin_complete"]
+
+    def get_can_check_in_today(self, obj):
+        return self._timing(obj)["can_check_in_today"]
+
+    def get_can_complete(self, obj):
+        return self._timing(obj)["can_complete"]
+
+    def get_next_checkin_date(self, obj):
+        next_date = self._timing(obj)["next_checkin_date"]
+        return next_date.isoformat() if next_date else None
 
     def get_recent_checkins(self, obj):
         return [
@@ -194,7 +219,7 @@ class UserExperimentSerializer(serializers.ModelSerializer):
                 "meaning": checkin.meaning or 3,
                 "desire_to_continue": checkin.desire_to_continue or 3,
             }
-            for checkin in obj.checkins.order_by("-day")[:3]
+            for checkin in obj.checkins.filter(is_complete=True).order_by("-day")[:3]
         ]
 
 
@@ -233,6 +258,7 @@ class CheckInSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckIn
         exclude = ["user_experiment"]
+        read_only_fields = ["day", "checkin_date", "created_at", "is_complete"]
 
 
 class FinalReflectionSerializer(serializers.ModelSerializer):

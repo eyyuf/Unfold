@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class Category(models.Model):
@@ -96,6 +99,37 @@ class UserExperiment(models.Model):
     start_date = models.DateField()
     reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_timing_status(self, on_date=None):
+        today = on_date or timezone.localdate()
+        calendar_day = (today - self.start_date).days + 1
+        duration = self.experiment.duration_days
+        completed_checkins = [
+            checkin for checkin in self.checkins.all() if checkin.is_complete
+        ]
+        completed_days = sorted({checkin.day for checkin in completed_checkins})
+        today_complete = any(
+            checkin.checkin_date == today for checkin in completed_checkins
+        )
+        can_check_in_today = 1 <= calendar_day <= duration and not today_complete
+        can_complete = calendar_day > duration or (
+            calendar_day == duration and today_complete
+        )
+
+        next_checkin_date = None
+        if calendar_day < 1:
+            next_checkin_date = self.start_date
+        elif today_complete and calendar_day < duration:
+            next_checkin_date = today + timedelta(days=1)
+
+        return {
+            "calendar_day": calendar_day,
+            "completed_days": completed_days,
+            "today_checkin_complete": today_complete,
+            "can_check_in_today": can_check_in_today,
+            "can_complete": can_complete,
+            "next_checkin_date": next_checkin_date,
+        }
 
 
 class SavedExperiment(models.Model):

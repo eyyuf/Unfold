@@ -61,6 +61,11 @@ export type ActiveExperiment = {
   experiment: ExperimentData
   checkin_count: number
   current_day: number
+  completed_days: number[]
+  today_checkin_complete: boolean
+  can_check_in_today: boolean
+  can_complete: boolean
+  next_checkin_date: string | null
   recent_checkins: {
     day: number
     notes: string

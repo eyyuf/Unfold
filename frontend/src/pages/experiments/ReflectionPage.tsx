@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { experimentService } from '@/services/experimentService'
-import { Btn, Card, Badge } from '@/components/common'
+import { Btn, Card, Badge, LoadingBlock } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
 import { useActiveExperiment } from '@/hooks/useActiveExperiment'
@@ -12,7 +12,7 @@ export default function ReflectionPage({ setScreen }: { setScreen: (s: Screen) =
   const [summary, setSummary] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data: active } = useActiveExperiment()
+  const { data: active, isPending } = useActiveExperiment()
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('No active experiment found.')
@@ -26,6 +26,25 @@ export default function ReflectionPage({ setScreen }: { setScreen: (s: Screen) =
       else setScreen('report')
     },
   })
+
+  if (isPending) return <LoadingBlock label="Checking reflection availability…" />
+
+  if (!active?.can_complete) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <Card style={{ width: '100%', maxWidth: 520, textAlign: 'center', padding: 32 }}>
+          <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>
+            Final reflection is not available yet.
+          </h1>
+          <p style={{ color: C.t3, lineHeight: 1.6, marginBottom: 20 }}>
+            Complete the experiment across its calendar window before creating your report.
+          </p>
+          <Btn onClick={() => setScreen('home')}>Back to home</Btn>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div
       style={{

@@ -33,7 +33,9 @@ class Command(BaseCommand):
             )
             if not (target <= local_now < target + datetime.timedelta(hours=1)):
                 continue
-            if item.checkins.filter(created_at__date=local_now.date()).exists():
+            if item.checkins.filter(
+                checkin_date=timezone.localdate(), is_complete=True
+            ).exists():
                 continue
             delivery, created = ReminderDelivery.objects.get_or_create(
                 user=item.user,

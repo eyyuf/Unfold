@@ -1,12 +1,32 @@
 import { Check, Sparkles } from 'lucide-react'
-import { Btn, Card, ScoreBar } from '@/components/common'
+import { Btn, Card, LoadingBlock, ScoreBar } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
 import { useActiveExperiment } from '@/hooks/useActiveExperiment'
 
+function formatCalendarDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(
+    new Date(`${value}T00:00:00`),
+  )
+}
+
 export default function CheckInCompletePage({ setScreen }: { setScreen: (s: Screen) => void }) {
-  const { data: active } = useActiveExperiment()
-  const latest = active?.recent_checkins[0]
+  const { data: active, isPending } = useActiveExperiment()
+
+  if (isPending) return <LoadingBlock label="Loading today's saved check-in…" />
+
+  if (!active) {
+    return (
+      <Card style={{ maxWidth: 520, margin: '80px auto', textAlign: 'center' }}>
+        <h1 className="font-serif" style={{ fontSize: 28, marginBottom: 10 }}>
+          No active experiment
+        </h1>
+        <Btn onClick={() => setScreen('home')}>Back to home</Btn>
+      </Card>
+    )
+  }
+
+  const latest = active.recent_checkins[0]
   const signals = latest
     ? [
         { l: 'Enjoyment', v: latest.enjoyment },
@@ -19,7 +39,7 @@ export default function CheckInCompletePage({ setScreen }: { setScreen: (s: Scre
     (best, signal) => (!best || signal.v > best.v ? signal : best),
     null,
   )
-  const readyToFinish = Boolean(active && active.checkin_count >= active.experiment.duration_days)
+  const readyToFinish = active.can_complete
   return (
     <div
       style={{
@@ -52,11 +72,13 @@ export default function CheckInCompletePage({ setScreen }: { setScreen: (s: Scre
           </div>
         </div>
         <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 8 }}>
-          Check-in saved.
+          Today's check-in is complete.
         </h1>
         <p style={{ fontSize: 15, color: C.t3, lineHeight: 1.6, marginBottom: 28 }}>
-          You have added another piece of evidence. {active?.checkin_count ?? 1} check-in
-          {active?.checkin_count === 1 ? '' : 's'} collected.
+          Your evidence is saved. Day{' '}
+          {Math.min(active.current_day, active.experiment.duration_days)} of{' '}
+          {active.experiment.duration_days} · {active.checkin_count} check-in
+          {active.checkin_count === 1 ? '' : 's'} completed.
         </p>
 
         {latest && (
@@ -108,11 +130,11 @@ export default function CheckInCompletePage({ setScreen }: { setScreen: (s: Scre
             </Btn>
           )}
         </div>
-        {!readyToFinish && active && (
+        {!readyToFinish && (
           <p style={{ color: C.t4, fontSize: 13, marginTop: 14 }}>
-            {active.experiment.duration_days - active.checkin_count} planned check-in
-            {active.experiment.duration_days - active.checkin_count === 1 ? '' : 's'} remaining
-            before the final reflection.
+            {active.next_checkin_date
+              ? `Your next check-in will be available tomorrow, ${formatCalendarDate(active.next_checkin_date)}.`
+              : 'Return to your dashboard for the next available check-in.'}
           </p>
         )}
       </div>

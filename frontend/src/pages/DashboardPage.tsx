@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bell, Check, Play, TrendingUp, Calendar, Clock, MoreHorizontal, Flame } from 'lucide-react'
+import { Bell, Check, Play, TrendingUp, Calendar, Clock, MoreHorizontal } from 'lucide-react'
 import { experimentService } from '@/services/experimentService'
 import {
   BrandMark,
@@ -18,6 +18,12 @@ import type { Screen, UserData } from '@/types'
 import { useActiveExperiment } from '@/hooks/useActiveExperiment'
 import { getStrongestRecentSignal, getTimeOfDayGreeting } from '@/utils/experimentSignals'
 
+function formatCalendarDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(
+    new Date(`${value}T00:00:00`),
+  )
+}
+
 export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const { data: active, isPending, isFetching, isError, refetch } = useActiveExperiment()
   const queryClient = useQueryClient()
@@ -29,7 +35,7 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
   const startCheckin = useMutation({
     mutationFn: (val: number) => {
       if (!active) throw new Error('No active experiment found.')
-      return experimentService.startCheckIn(active.id, active.current_day, val)
+      return experimentService.startCheckIn(active.id, val)
     },
     onSuccess: () => {
       setShowMotivationModal(false)
@@ -59,7 +65,10 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
         onAction={() => setScreen('library')}
       />
     )
-  const day = active.current_day
+  const duration = active.experiment.duration_days
+  const calendarDay = active.current_day
+  const day = Math.min(Math.max(calendarDay, 1), duration)
+  const calendarProgress = Math.min(Math.max(calendarDay, 0), duration)
   const task = active.experiment.daily_tasks.find((item) => item.day === day)
   const strongestRecentSignal = getStrongestRecentSignal(active)
   return (
@@ -172,105 +181,140 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
         </h2>
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, fontSize: 13, color: C.t3 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Calendar size={13} /> Day {day} of {active.experiment.duration_days}
+            <Calendar size={13} />{' '}
+            {calendarDay < 1
+              ? `Starts ${formatCalendarDate(active.start_date)}`
+              : calendarDay > duration
+                ? 'Experiment window complete'
+                : `Day ${calendarDay} of ${duration}`}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <Clock size={13} /> ~{active.experiment.minutes_per_day} min/day
           </span>
         </div>
 
-        <ProgressBar
-          value={active.checkin_count}
-          max={active.experiment.duration_days}
-          label="Progress"
-        />
+        <ProgressBar value={calendarProgress} max={duration} label="Calendar progress" />
 
-        {active.checkin_count >= 2 && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '4px 10px',
-              borderRadius: 999,
-              background: `${C.orange}18`,
-              color: C.orange,
-              fontSize: 12,
-              fontWeight: 700,
-              marginTop: 8,
-            }}
-          >
-            <Flame size={13} /> {active.checkin_count} day streak
-          </div>
-        )}
+        <p style={{ color: C.t4, fontSize: 12, marginTop: 8 }}>
+          {active.checkin_count} of {duration} check-ins completed
+        </p>
 
         {/* Day indicators */}
         <div style={{ display: 'flex', gap: 6, margin: '16px 0 20px' }}>
           {Array.from({ length: active.experiment.duration_days }, (_, index) => index + 1).map(
-            (d) => (
-              <div
-                key={d}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: d <= active.checkin_count ? C.acc : d === day ? C.accS : C.s2,
-                  color: d <= active.checkin_count ? '#052e16' : d === day ? C.acc : C.t4,
-                  border: d === day ? `1px solid ${C.accB}` : 'none',
-                }}
-              >
-                {d <= active.checkin_count ? <Check size={13} /> : d}
-              </div>
-            ),
+            (d) => {
+              const completed = active.completed_days.includes(d)
+              const isCurrent = d === calendarDay
+              return (
+                <div
+                  key={d}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: completed ? C.acc : isCurrent ? C.accS : C.s2,
+                    color: completed ? '#052e16' : isCurrent ? C.acc : C.t4,
+                    border: isCurrent ? `1px solid ${C.accB}` : 'none',
+                  }}
+                >
+                  {completed ? <Check size={13} /> : d}
+                </div>
+              )
+            },
           )}
         </div>
 
         {/* Today's task */}
-        <div
-          style={{
-            background: C.s2,
-            borderRadius: 12,
-            padding: '16px',
-            marginBottom: 20,
-            border: `1px solid ${C.br}`,
-          }}
-        >
+        {calendarDay >= 1 && calendarDay <= duration && (
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.t4,
-              letterSpacing: '0.06em',
-              marginBottom: 8,
-              textTransform: 'uppercase',
+              background: C.s2,
+              borderRadius: 12,
+              padding: '16px',
+              marginBottom: 20,
+              border: `1px solid ${C.br}`,
             }}
           >
-            Today's task
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: C.t4,
+                letterSpacing: '0.06em',
+                marginBottom: 8,
+                textTransform: 'uppercase',
+              }}
+            >
+              Today's task
+            </div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 6 }}>
+              {task?.instructions ?? 'Complete today’s experiment task.'}
+            </p>
+            <div style={{ display: 'flex', gap: 12, fontSize: 13, color: C.t4 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Clock size={12} /> {active.experiment.minutes_per_day} minutes
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Bell size={12} /> Reminder at {user?.reminder_time?.slice(0, 5) ?? '19:30'}
+              </span>
+            </div>
           </div>
-          <p style={{ fontSize: 15, fontWeight: 600, color: C.t1, marginBottom: 6 }}>
-            {task?.instructions ?? 'Complete today’s experiment task.'}
-          </p>
-          <div style={{ display: 'flex', gap: 12, fontSize: 13, color: C.t4 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Clock size={12} /> {active.experiment.minutes_per_day} minutes
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Bell size={12} /> Reminder at {user?.reminder_time?.slice(0, 5) ?? '19:30'}
-            </span>
+        )}
+
+        {active.today_checkin_complete && (
+          <div
+            role="status"
+            style={{
+              padding: 16,
+              borderRadius: 12,
+              background: C.accS,
+              border: `1px solid ${C.accB}`,
+              marginBottom: active.can_complete ? 12 : 0,
+            }}
+          >
+            <p style={{ color: C.acc, fontWeight: 700, marginBottom: 4 }}>
+              Today's check-in is complete.
+            </p>
+            {!active.can_complete && active.next_checkin_date && (
+              <p style={{ color: C.t3, fontSize: 13 }}>
+                Your next check-in will be available tomorrow,{' '}
+                {formatCalendarDate(active.next_checkin_date)}.
+              </p>
+            )}
           </div>
-        </div>
+        )}
 
-        <Btn variant="primary" full size="lg" onClick={() => setShowMotivationModal(true)}>
-          <Play size={16} />
-          Begin today's task
-        </Btn>
+        {calendarDay < 1 && active.next_checkin_date && (
+          <div role="status" style={{ color: C.t3, fontSize: 14 }}>
+            This experiment starts on {formatCalendarDate(active.next_checkin_date)}.
+          </div>
+        )}
 
-        {showMotivationModal && (
+        {calendarDay > duration && (
+          <div role="status" style={{ color: C.t3, fontSize: 14, marginBottom: 12 }}>
+            The {duration}-day experiment window is complete. Missed days remain unfilled.
+          </div>
+        )}
+
+        {active.can_check_in_today && (
+          <Btn variant="primary" full size="lg" onClick={() => setShowMotivationModal(true)}>
+            <Play size={16} />
+            Begin today's task
+          </Btn>
+        )}
+
+        {active.can_complete && (
+          <Btn variant="secondary" full size="lg" onClick={() => setScreen('reflection')}>
+            Complete final reflection
+          </Btn>
+        )}
+
+        {showMotivationModal && active.can_check_in_today && (
           <ConfirmModal
             open={showMotivationModal}
             title="Before starting today's task"
@@ -318,6 +362,11 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
               <span>1: Not at all</span>
               <span>5: Very motivated</span>
             </div>
+            {startCheckin.error && (
+              <p role="alert" style={{ color: C.red, fontSize: 13, marginTop: 12 }}>
+                {startCheckin.error.message}
+              </p>
+            )}
           </ConfirmModal>
         )}
         <button

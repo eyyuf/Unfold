@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from accounts.models import User
 from checkins.models import CheckIn, FinalReflection
 from django.test import TestCase
@@ -70,6 +72,7 @@ class ScoringServiceTests(TestCase):
                 curiosity=4,
                 meaning=4,
                 is_complete=True,
+                checkin_date=date(2026, 8, 1) + timedelta(days=d - 1),
             )
 
         score2, label2 = calculate_evidence_confidence(ue)
@@ -149,6 +152,7 @@ class TraitEvidenceAndHypothesisTests(TestCase):
                 curiosity=5,
                 meaning=5,
                 is_complete=True,
+                checkin_date=date(2026, 8, 1) + timedelta(days=d - 1),
             )
         FinalReflection.objects.create(
             user_experiment=ue, repeat_intent=5, summary="Loved it"
@@ -179,6 +183,7 @@ class TraitEvidenceAndHypothesisTests(TestCase):
                 curiosity=5,
                 meaning=5,
                 is_complete=True,
+                checkin_date=date(2026, 8, 1) + timedelta(days=d - 1),
             )
         FinalReflection.objects.create(
             user_experiment=ue1, repeat_intent=5, summary="S1"
@@ -207,6 +212,7 @@ class TraitEvidenceAndHypothesisTests(TestCase):
                 curiosity=5,
                 meaning=5,
                 is_complete=True,
+                checkin_date=date(2026, 8, 5) + timedelta(days=d - 1),
             )
         FinalReflection.objects.create(
             user_experiment=ue2, repeat_intent=5, summary="S2"
