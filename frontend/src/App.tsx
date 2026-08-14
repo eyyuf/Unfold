@@ -2213,6 +2213,12 @@ function HypothesisCard({
   }
 
   const color = statusColors[hypothesis.status] ?? C.acc
+  const statusMeaning: Record<UserHypothesisData['status'], string> = {
+    supported: 'Repeated, consistent evidence supports this for now.',
+    emerging: 'Positive signals are repeating, but more contrast is useful.',
+    uncertain: 'There is not enough consistent evidence yet.',
+    contradicted: 'Repeated evidence has leaned against this assumption so far.',
+  }
 
   return (
     <Card style={{ background: `${color}09`, border: `1px solid ${color}25`, marginBottom: 14 }}>
@@ -2232,6 +2238,7 @@ function HypothesisCard({
           ? (hypothesis.trait.negative_hypothesis_text || `${hypothesis.trait.name} activities have not consistently produced positive signals yet.`)
           : (hypothesis.trait.positive_hypothesis_text || `${hypothesis.trait.name} activities repeatedly produce positive signals for you.`)}
       </p>
+      <p style={{ fontSize: 12, color: C.t4, lineHeight: 1.55, margin: '-6px 0 14px' }}>{statusMeaning[hypothesis.status]} This can change as you test it in new settings.</p>
 
       <div style={{ display: 'flex', gap: 16, fontSize: 13, color: C.t3, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>Support: <span style={{ fontWeight: 700, color: C.t1 }}>{Math.round(hypothesis.support_score)}%</span></div>
@@ -2279,7 +2286,8 @@ function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
   const supported = hypotheses.filter(h => h.status === 'supported')
   const emerging = hypotheses.filter(h => h.status === 'emerging')
-  const uncertain = hypotheses.filter(h => h.status === 'uncertain' || h.status === 'contradicted')
+  const uncertain = hypotheses.filter(h => h.status === 'uncertain')
+  const contradicted = hypotheses.filter(h => h.status === 'contradicted')
 
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -2289,7 +2297,7 @@ function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 
       <div style={{ marginBottom: 28 }}>
         <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>What I've learned about myself</h1>
-        <p style={{ fontSize: 15, color: C.t3 }}>Rule-based hypotheses built from your completed experiment evidence.</p>
+        <p style={{ fontSize: 15, color: C.t3 }}>Changeable hypotheses built from your completed experiment evidence—not labels or final conclusions.</p>
       </div>
 
       {/* 1. Strongest Current Patterns */}
@@ -2345,6 +2353,13 @@ function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           </Card>
         )}
       </div>
+
+      {/* 4. Contradicted assumptions */}
+      {contradicted.length > 0 && <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.red, letterSpacing: '0.06em', marginBottom: 14 }}>LEANING AGAINST</div>
+        <p style={{ color: C.t4, fontSize: 13, lineHeight: 1.55, marginBottom: 14 }}>These assumptions have received several low-fit signals. They may still change with a different context.</p>
+        {contradicted.map(h => <HypothesisCard key={h.id} hypothesis={h} onViewEvidence={setSelectedHypothesisId} onTestAssumption={setTestHypothesisId} />)}
+      </div>}
 
       {/* View Evidence Modal */}
       {selectedHypothesisId && (
@@ -2584,7 +2599,7 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+      <div className="vault-header">
         <div>
           <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Evidence Vault</h1>
           <p style={{ fontSize: 15, color: C.t3 }}>Your personal archive of completed experiments.</p>
@@ -2595,7 +2610,7 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
       </div>
 
       {/* Summary row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
+      <div className="vault-summary-grid">
         {[{ n: entries.length, l: 'experiments' }, { n: averageFit, s: '%', l: 'avg fit signal' }, { n: entries.reduce((sum, entry) => sum + entry.checkin_count, 0), l: 'check-ins' }].map(({ n, s, l }) => (
           <Card key={l} style={{ textAlign: 'center', padding: '16px 12px' }}>
             <div style={{ fontSize: 24, fontWeight: 800, color: C.t1, marginBottom: 2 }}><AnimatedCounter value={n} suffix={s || ''} /></div>
@@ -2608,9 +2623,9 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
         <div className="timeline-line" />
         {entries.map((entry, idx) => (
-          <Card key={entry.id} className={`stagger-${Math.min(idx + 1, 6)}`} onClick={() => navigate(`/app/reports/${entry.id}`)} style={{ cursor: 'pointer', marginLeft: 32 }} >
+          <Card key={entry.id} className={`vault-entry stagger-${Math.min(idx + 1, 6)}`} onClick={() => navigate(`/app/reports/${entry.id}`)} style={{ cursor: 'pointer', marginLeft: 32 }} >
             <div style={{ position: 'absolute', left: 15, marginTop: 20, width: 12, height: 12, borderRadius: '50%', background: entry.fit_signal >= 70 ? C.acc : C.amber, border: `2px solid ${C.bg}`, zIndex: 2 }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div className="vault-entry-header">
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <Badge label={entry.experiment.category} color={C.purple} />
                 {entry.status === 'abandoned' && <span style={{ fontSize: 11, color: C.t4, fontWeight: 600 }}>Ended early</span>}
@@ -2630,6 +2645,7 @@ function VaultScreen({ setScreen: _setScreen }: { setScreen: (s: Screen) => void
             </div>
             <div style={{ borderTop: `1px solid ${C.br}`, paddingTop: 12 }}>
               <p style={{ fontSize: 13, color: C.t3, fontStyle: 'italic', margin: 0 }}>{entry.summary || 'Evidence collected from your daily check-ins.'}</p>
+              <p style={{ fontSize: 12, color: C.t4, margin: '8px 0 0' }}>{entry.checkin_count} of {entry.experiment.duration_days} planned check-ins · Open the report to inspect its source signals.</p>
             </div>
           </Card>
         ))}
