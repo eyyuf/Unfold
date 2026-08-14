@@ -6,6 +6,7 @@ import { BrandMark, ConfirmModal, Btn, LoadingBlock, ErrorBlock, EmptyState, Car
 import { C } from '@/app/theme'
 import type { Screen, UserData } from '@/types'
 import { useActiveExperiment } from '@/hooks/useActiveExperiment'
+import { getStrongestRecentSignal, getTimeOfDayGreeting } from '@/utils/experimentSignals'
 
 export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const { data: active, isPending, isFetching, isError, refetch } = useActiveExperiment()
@@ -41,20 +42,14 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
   if (!active) return <EmptyState title="Your next discovery starts with one small experiment" copy="Choose a short experiment to begin collecting evidence." action="Explore experiments" onAction={() => setScreen('library')} />
   const day = active.current_day
   const task = active.experiment.daily_tasks.find((item) => item.day === day)
-  const recentSignalAverages = active.recent_checkins.length ? [
-    { label: 'curiosity', value: active.recent_checkins.reduce((sum, item) => sum + item.curiosity, 0) / active.recent_checkins.length },
-    { label: 'energy', value: active.recent_checkins.reduce((sum, item) => sum + item.energy, 0) / active.recent_checkins.length },
-    { label: 'meaning', value: active.recent_checkins.reduce((sum, item) => sum + item.meaning, 0) / active.recent_checkins.length },
-    { label: 'enjoyment', value: active.recent_checkins.reduce((sum, item) => sum + item.enjoyment, 0) / active.recent_checkins.length },
-  ].sort((a, b) => b.value - a.value) : []
-  const strongestRecentSignal = recentSignalAverages[0]
+  const strongestRecentSignal = getStrongestRecentSignal(active)
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
         <div>
           <p style={{ color: C.t4, fontSize: 13, marginBottom: 4 }}>{new Intl.DateTimeFormat(undefined, { dateStyle: 'full' }).format(new Date())}</p>
-          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night' })()}, {user?.display_name || user?.email.split('@')[0]}</h1>
+          <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 4 }}>{getTimeOfDayGreeting()}, {user?.display_name || user?.email.split('@')[0]}</h1>
           <p style={{ color: C.t3, fontSize: 14 }}>One experiment at a time.</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

@@ -7,6 +7,7 @@ import { ConfirmModal, LoadingBlock, ErrorBlock, Card, Badge } from '@/component
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
 import { HypothesisCard } from '@/components/insights/HypothesisCard'
+import { groupHypotheses } from '@/utils/hypotheses'
 
 export default function LearnedPatternsPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
@@ -33,10 +34,7 @@ export default function LearnedPatternsPage({ setScreen }: { setScreen: (s: Scre
   if (isLoading) return <LoadingBlock label="Analyzing user evidence & hypotheses…" />
   if (error) return <ErrorBlock message="Could not load your learned hypotheses." onRetry={() => refetch()} />
 
-  const supported = hypotheses.filter(h => h.status === 'supported')
-  const emerging = hypotheses.filter(h => h.status === 'emerging')
-  const uncertain = hypotheses.filter(h => h.status === 'uncertain')
-  const contradicted = hypotheses.filter(h => h.status === 'contradicted')
+  const { supported, emerging, uncertain, contradicted } = groupHypotheses(hypotheses)
 
   return (
     <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
