@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
 import { Btn, Card } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
@@ -9,7 +9,7 @@ import type { Screen } from '@/types'
 export default function ForgotPasswordPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [email, setEmail] = useState('')
   const requestReset = useMutation({
-    mutationFn: () => apiRequest<{ detail: string; reset_url?: string }>('/auth/password-reset/', { method: 'POST', body: JSON.stringify({ email }) }),
+    mutationFn: () => authService.requestPasswordReset(email),
   })
   return (
     <div className="auth-page" style={{ minHeight: '100vh', background: C.bg, display: 'grid', placeItems: 'center', padding: 24 }}>

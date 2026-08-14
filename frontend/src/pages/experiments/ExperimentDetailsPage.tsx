@@ -1,10 +1,10 @@
 import { useLocation, useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark, ChevronLeft, Star, TrendingUp, Calendar, Clock } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { Btn, LoadingBlock, ErrorBlock, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserData, ExperimentData, SavedExperimentData } from '@/types'
+import type { Screen, UserData } from '@/types'
 
 export default function ExperimentDetailsPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const slug = useLocation().pathname.split('/').pop() ?? ''
@@ -13,16 +13,16 @@ export default function ExperimentDetailsPage({ setScreen }: { setScreen: (s: Sc
   const user = queryClient.getQueryData<UserData>(['me'])
   const { data: experiment, isLoading, error, refetch } = useQuery({
     queryKey: ['experiment', slug],
-    queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
+    queryFn: () => experimentService.get(slug),
   })
   const { data: savedItems = [] } = useQuery({
     queryKey: ['saved-experiments'],
-    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+    queryFn: experimentService.getSaved,
     enabled: Boolean(user),
   })
   const isSaved = savedItems.some((item) => item.experiment.slug === slug)
   const saveExperiment = useMutation({
-    mutationFn: () => apiRequest(`/experiments/${slug}/save/`, { method: isSaved ? 'DELETE' : 'POST' }),
+    mutationFn: () => experimentService.toggleSaved(slug, isSaved),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
   })
   if (isLoading) return <LoadingBlock label="Loading experiment…" />

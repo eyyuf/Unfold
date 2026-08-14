@@ -1,10 +1,11 @@
 import { useLocation, useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, ChevronLeft, BookOpen, Shield } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
+import { insightService } from '@/services/insightService'
 import { AnimatedCounter, LoadingBlock, ErrorBlock, Card, Badge, ScoreBar } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, ExperimentReport, InsightsData } from '@/types'
+import type { Screen } from '@/types'
 
 export default function ExperimentReportPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const location = useLocation()
@@ -13,14 +14,14 @@ export default function ExperimentReportPage({ setScreen }: { setScreen: (s: Scr
   const { data: report, isLoading, error, refetch } = useQuery({
     queryKey: ['experiment-report', reportId ?? 'latest'],
     queryFn: async () => {
-      if (reportId) return apiRequest<ExperimentReport>(`/user-experiments/${reportId}/report/`)
-      const reports = await apiRequest<ExperimentReport[]>('/evidence-vault/')
+      if (reportId) return experimentService.getReport(reportId)
+      const reports = await experimentService.getEvidenceVault()
       return reports[0] ?? null
     },
   })
   const { data: insights } = useQuery({
     queryKey: ['insights'],
-    queryFn: () => apiRequest<InsightsData>('/insights/'),
+    queryFn: insightService.getInsights,
   })
   if (isLoading) return <LoadingBlock label="Building your report…" />
   if (error) return <ErrorBlock message="This report could not be loaded." onRetry={() => refetch()} />

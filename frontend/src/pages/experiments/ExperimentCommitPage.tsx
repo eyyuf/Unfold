@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { Btn, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserData, ExperimentData, ActiveExperiment } from '@/types'
+import type { Screen, UserData } from '@/types'
 
 export default function ExperimentCommitPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
@@ -23,13 +23,10 @@ export default function ExperimentCommitPage({ setScreen }: { setScreen: (s: Scr
   const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
   const { data: experiment, isLoading } = useQuery({
     queryKey: ['experiment', slug],
-    queryFn: () => apiRequest<ExperimentData>(`/experiments/${slug}/`),
+    queryFn: () => experimentService.get(slug),
   })
   const start = useMutation({
-    mutationFn: () => apiRequest<ActiveExperiment>(`/experiments/${slug}/start/`, {
-      method: 'POST',
-      body: JSON.stringify({ start_date: startDate, reason, reminders_enabled: remindersEnabled, reminder_time: reminderTime }),
-    }),
+    mutationFn: () => experimentService.start(slug, { start_date: startDate, reason, reminders_enabled: remindersEnabled, reminder_time: reminderTime }),
     onSuccess: (active) => {
       queryClient.setQueryData(['active-experiment'], active)
       queryClient.invalidateQueries({ queryKey: ['me'] })

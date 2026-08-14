@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { insightService } from '@/services/insightService'
 import { ConfirmModal, LoadingBlock, ErrorBlock, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserHypothesisData, ContrastRecommendationData, EvidenceItem } from '@/types'
+import type { Screen } from '@/types'
 import { HypothesisCard } from '@/components/insights/HypothesisCard'
 
 export default function LearnedPatternsPage({ setScreen }: { setScreen: (s: Screen) => void }) {
@@ -15,18 +15,18 @@ export default function LearnedPatternsPage({ setScreen }: { setScreen: (s: Scre
 
   const { data: hypotheses = [], isLoading, error, refetch } = useQuery({
     queryKey: ['hypotheses'],
-    queryFn: () => apiRequest<UserHypothesisData[]>('/insights/hypotheses/'),
+    queryFn: insightService.getHypotheses,
   })
 
   const { data: detailData, isLoading: detailLoading } = useQuery({
     queryKey: ['hypothesis', selectedHypothesisId],
-    queryFn: () => selectedHypothesisId ? apiRequest<UserHypothesisData & { evidence: EvidenceItem[] }>(`/insights/hypotheses/${selectedHypothesisId}/`) : null,
+    queryFn: () => selectedHypothesisId ? insightService.getHypothesis(selectedHypothesisId) : null,
     enabled: !!selectedHypothesisId,
   })
 
   const { data: testData, isLoading: testLoading } = useQuery({
     queryKey: ['recommendation', 'hypothesis', testHypothesisId],
-    queryFn: () => testHypothesisId ? apiRequest<ContrastRecommendationData>(`/insights/hypotheses/${testHypothesisId}/test/`, { method: 'POST' }) : null,
+    queryFn: () => testHypothesisId ? insightService.getContrastRecommendation(testHypothesisId) : null,
     enabled: !!testHypothesisId,
   })
 

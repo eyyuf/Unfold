@@ -1,19 +1,20 @@
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
+import { experimentService } from '@/services/experimentService'
 import { AnimatedCounter, LoadingBlock, ErrorBlock, EmptyState, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, ExperimentReport } from '@/types'
+import type { Screen } from '@/types'
 
 export default function EvidenceVaultPage({ setScreen: _setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
   const { data: entries = [], isLoading, error, refetch } = useQuery({
     queryKey: ['evidence-vault'],
-    queryFn: () => apiRequest<ExperimentReport[]>('/evidence-vault/'),
+    queryFn: experimentService.getEvidenceVault,
   })
   const exportVault = useMutation({
-    mutationFn: () => apiRequest<Record<string, unknown>>('/auth/export/'),
+    mutationFn: authService.exportUserData,
     onSuccess: (data) => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
       const link = document.createElement('a')

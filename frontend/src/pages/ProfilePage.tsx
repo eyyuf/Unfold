@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { jsPDF } from 'jspdf'
 import { BarChart2, ChevronRight, Settings, Shield, Lock, Download, Trash2, Moon, Sun } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
 import { ConfirmModal, Btn, Card } from '@/components/common'
 import { C, applyThemePreference } from '@/app/theme'
 import { addToast } from '@/components/common/toast'
-import type { Screen, UserData, ProfileActivityData, ThemePreference } from '@/types'
+import type { Screen, ThemePreference } from '@/types'
 import { StreakTracker } from '@/components/profile/StreakTracker'
 
 export default function ProfilePage({ setScreen }: { setScreen: (s: Screen) => void }) {
@@ -15,10 +15,10 @@ export default function ProfilePage({ setScreen }: { setScreen: (s: Screen) => v
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const queryClient = useQueryClient()
-  const { data: user } = useQuery({ queryKey: ['me'], queryFn: () => apiRequest<UserData | null>('/auth/me/') })
+  const { data: user } = useQuery({ queryKey: ['me'], queryFn: authService.getCurrentUser })
   const { data: activity, isPending: activityLoading } = useQuery({
     queryKey: ['profile-activity'],
-    queryFn: () => apiRequest<ProfileActivityData>('/profile/activity/'),
+    queryFn: authService.getProfileActivity,
   })
   const [displayName, setDisplayName] = useState(user?.display_name ?? '')
   const [reminderTime, setReminderTime] = useState(user?.reminder_time?.slice(0, 5) ?? '19:30')
@@ -30,16 +30,16 @@ export default function ProfilePage({ setScreen }: { setScreen: (s: Screen) => v
     setTimezone(user.timezone ?? 'Africa/Nairobi')
   }, [user])
   const updateProfile = useMutation({
-    mutationFn: (data: object) => apiRequest<UserData>('/auth/me/', { method: 'PATCH', body: JSON.stringify(data) }),
+    mutationFn: authService.updateProfile,
     onSuccess: (data) => { queryClient.setQueryData(['me'], data); addToast('Settings saved') },
   })
   const { data: consents = [] } = useQuery({
     queryKey: ['consent-history'],
-    queryFn: () => apiRequest<{ id: number; kind: string; granted: boolean; policy_version: string; created_at: string }[]>('/auth/consents/'),
+    queryFn: authService.getConsentHistory,
     enabled: showConsents,
   })
   const exportData = useMutation({
-    mutationFn: () => apiRequest<Record<string, any>>('/auth/export/'),
+    mutationFn: authService.exportUserData,
     onSuccess: (data) => {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const W = 210, M = 20
@@ -257,11 +257,11 @@ export default function ProfilePage({ setScreen }: { setScreen: (s: Screen) => v
     },
   })
   const deleteUser = useMutation({
-    mutationFn: () => apiRequest('/auth/delete-account/', { method: 'POST', body: JSON.stringify({ confirmation: 'DELETE' }) }),
+    mutationFn: authService.deleteAccount,
     onSuccess: () => { queryClient.clear(); setScreen('landing') },
   })
   const logoutUser = useMutation({
-    mutationFn: () => apiRequest('/auth/logout/', { method: 'POST' }),
+    mutationFn: authService.logout,
     onSuccess: () => { queryClient.clear(); setScreen('landing') },
   })
   const chooseTheme = (preference: ThemePreference) => {

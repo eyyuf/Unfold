@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { Btn, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
@@ -16,9 +16,7 @@ export default function ReflectionPage({ setScreen }: { setScreen: (s: Screen) =
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('No active experiment found.')
-      return apiRequest(`/user-experiments/${active.id}/final-reflection/`, {
-        method: 'POST', body: JSON.stringify({ repeat_intent: repeatIntent, summary }),
-      })
+      return experimentService.completeReflection(active.id, repeatIntent, summary)
     },
     onSuccess: () => {
       const completedId = active?.id

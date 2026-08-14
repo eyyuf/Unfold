@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router'
 
-import { apiRequest } from '@/api/client'
 import { LoadingBlock } from '@/components/common'
 import AppLayout from '@/components/layout/AppLayout'
 import DashboardPage from '@/pages/DashboardPage'
@@ -26,7 +24,8 @@ import SavedExperimentsPage from '@/pages/experiments/SavedExperimentsPage'
 import EvidenceVaultPage from '@/pages/insights/EvidenceVaultPage'
 import InsightsPage from '@/pages/insights/InsightsPage'
 import LearnedPatternsPage from '@/pages/insights/LearnedPatternsPage'
-import type { Screen, UserData } from '@/types'
+import { useAuth } from '@/hooks/useAuth'
+import type { Screen } from '@/types'
 
 export const paths: Record<Screen, string> = {
   landing: '/', login: '/login', register: '/register', 'forgot-password': '/forgot-password', 'reset-password': '/reset-password',
@@ -50,11 +49,7 @@ export function AppRoutes() {
   const location = useLocation()
   const screen = screenForPath(location.pathname)
   const setScreen = (next: Screen) => navigate(paths[next])
-  const { data: user, isLoading: authLoading } = useQuery({
-    queryKey: ['me'],
-    queryFn: () => apiRequest<UserData | null>('/auth/me/'),
-    retry: false,
-  })
+  const { data: user, isLoading: authLoading } = useAuth()
 
   switch (screen) {
     case 'landing': return <LandingPage setScreen={setScreen} />

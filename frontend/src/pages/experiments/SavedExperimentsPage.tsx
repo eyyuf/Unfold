@@ -1,20 +1,20 @@
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bookmark, ChevronLeft } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { Btn, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, SavedExperimentData } from '@/types'
+import type { Screen } from '@/types'
 
 export default function SavedExperimentsPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: items = [], isLoading, error } = useQuery({
     queryKey: ['saved-experiments'],
-    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+    queryFn: experimentService.getSaved,
   })
   const remove = useMutation({
-    mutationFn: (slug: string) => apiRequest(`/experiments/${slug}/save/`, { method: 'DELETE' }),
+    mutationFn: (slug: string) => experimentService.toggleSaved(slug, true),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
   })
 

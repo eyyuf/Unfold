@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, ChevronLeft, Check, X, Sparkles } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { Btn } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
@@ -35,9 +35,7 @@ export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => v
   const submit = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('Start an experiment before checking in.')
-      return apiRequest(`/user-experiments/${active.id}/checkins/`, {
-        method: 'POST',
-        body: JSON.stringify({
+      return experimentService.submitCheckIn(active.id, {
           day: active.current_day,
           enjoyment: answers[1] ?? 3,
           energy_after: answers[2] ?? 3,
@@ -51,7 +49,6 @@ export default function CheckInPage({ setScreen }: { setScreen: (s: Screen) => v
           minutes_spent: active.experiment.minutes_per_day,
           notes,
           is_complete: true,
-        }),
       })
     },
     onSuccess: async () => {

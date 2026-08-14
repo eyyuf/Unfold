@@ -1,25 +1,22 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, ChevronLeft, Check } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
 import { Btn } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserData } from '@/types'
+import type { Screen } from '@/types'
 
 export default function OnboardingPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({})
   const queryClient = useQueryClient()
   const complete = useMutation({
-    mutationFn: () => apiRequest<UserData>('/auth/me/', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        onboarding_answers: {
-          reason: answers[0] ?? '',
-          available_time: answers[1] ?? '',
-          interests: answers[2] ?? [],
-        },
-      }),
+    mutationFn: () => authService.updateProfile({
+      onboarding_answers: {
+        reason: answers[0] ?? '',
+        available_time: answers[1] ?? '',
+        interests: answers[2] ?? [],
+      },
     }),
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user)

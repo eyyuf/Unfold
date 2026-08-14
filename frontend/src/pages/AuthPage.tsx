@@ -2,17 +2,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronLeft } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
 import { BrandMark, Btn, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserData, AuthFields } from '@/types'
+import type { Screen, AuthFields } from '@/types'
 import { authSchema } from '@/app/authSchema'
 
 export function AuthPage({ mode, setScreen }: { mode: 'login' | 'register'; setScreen: (s: Screen) => void }) {
   const queryClient = useQueryClient()
   const { register, handleSubmit, watch, formState: { errors } } = useForm<AuthFields>({ resolver: zodResolver(authSchema(mode)) })
   const mutation = useMutation({
-    mutationFn: (values: AuthFields) => apiRequest<UserData>(`/auth/${mode}/`, { method: 'POST', body: JSON.stringify(values) }),
+    mutationFn: (values: AuthFields) => authService.authenticate(mode, values),
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user)
       setScreen(mode === 'register' ? 'onboarding' : 'home')

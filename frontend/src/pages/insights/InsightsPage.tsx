@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Star, Brain, TrendingUp } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { insightService } from '@/services/insightService'
 import { AnimatedCounter, Btn, LoadingBlock, ErrorBlock, EmptyState, Card, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, InsightsData } from '@/types'
+import type { Screen } from '@/types'
 import { EvidenceMap } from '@/components/insights/EvidenceMap'
 import { HowUnfoldLearns } from '@/components/insights/HowUnfoldLearns'
 
@@ -12,7 +12,7 @@ export default function InsightsPage({ setScreen }: { setScreen: (s: Screen) => 
   const navigate = useNavigate()
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['insights'],
-    queryFn: () => apiRequest<InsightsData>('/insights/'),
+    queryFn: insightService.getInsights,
   })
   if (isLoading) return <LoadingBlock label="Finding patterns in your evidence…" />
   if (error) return <ErrorBlock message="Your insights could not be loaded." onRetry={() => refetch()} />

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router'
 import { useMutation } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { authService } from '@/services/authService'
 import { Btn, Card } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen } from '@/types'
@@ -12,10 +12,7 @@ export default function ResetPasswordPage({ setScreen }: { setScreen: (s: Screen
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const reset = useMutation({
-    mutationFn: () => apiRequest<{ detail: string }>('/auth/password-reset/confirm/', {
-      method: 'POST',
-      body: JSON.stringify({ uid: params.get('uid'), token: params.get('token'), password, confirm_password: confirmPassword }),
-    }),
+    mutationFn: () => authService.confirmPasswordReset({ uid: params.get('uid'), token: params.get('token'), password, confirm_password: confirmPassword }),
   })
   const mismatch = Boolean(confirmPassword && password !== confirmPassword)
   return (

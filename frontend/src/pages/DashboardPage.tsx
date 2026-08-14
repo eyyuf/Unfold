@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Bell, Check, Play, TrendingUp, Calendar, Clock, MoreHorizontal, Flame } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { BrandMark, ConfirmModal, Btn, LoadingBlock, ErrorBlock, EmptyState, Card, ProgressBar, Badge } from '@/components/common'
 import { C } from '@/app/theme'
 import type { Screen, UserData } from '@/types'
@@ -16,10 +16,10 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
   const [showAbandonModal, setShowAbandonModal] = useState(false)
 
   const startCheckin = useMutation({
-    mutationFn: (val: number) => apiRequest(`/user-experiments/${active?.id}/checkins/start/`, {
-      method: 'POST',
-      body: JSON.stringify({ day_number: active?.current_day, motivation_before: val })
-    }),
+    mutationFn: (val: number) => {
+      if (!active) throw new Error('No active experiment found.')
+      return experimentService.startCheckIn(active.id, active.current_day, val)
+    },
     onSuccess: () => {
       setShowMotivationModal(false)
       setScreen('checkin')
@@ -28,7 +28,7 @@ export default function DashboardPage({ setScreen }: { setScreen: (s: Screen) =>
   const abandon = useMutation({
     mutationFn: () => {
       if (!active) throw new Error('No active experiment found.')
-      return apiRequest(`/user-experiments/${active.id}/abandon/`, { method: 'POST' })
+      return experimentService.abandon(active.id)
     },
     onSuccess: () => {
       queryClient.setQueryData(['active-experiment'], null)

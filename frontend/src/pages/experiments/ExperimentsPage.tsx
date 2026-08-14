@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Compass, Bookmark, ChevronRight, Star, Heart, Brain, Leaf, Users, Dumbbell, Search, Sparkles } from 'lucide-react'
-import { apiRequest } from '@/api/client'
+import { experimentService } from '@/services/experimentService'
 import { SkeletonCard, Btn, ErrorBlock, Card, CategoryChip, Badge } from '@/components/common'
 import { C } from '@/app/theme'
-import type { Screen, UserData, ExperimentData, SavedExperimentData } from '@/types'
+import type { Screen, UserData } from '@/types'
 
 export default function ExperimentsPage({ setScreen }: { setScreen: (s: Screen) => void }) {
   const [activeFilter, setActiveFilter] = useState('All')
@@ -26,19 +26,16 @@ export default function ExperimentsPage({ setScreen }: { setScreen: (s: Screen) 
 
   const { data = [], isLoading, error, refetch } = useQuery({
     queryKey: ['experiments', activeFilter, search],
-    queryFn: () => apiRequest<ExperimentData[]>(`/experiments/?${new URLSearchParams({
-      ...(activeFilter !== 'All' ? { category: activeFilter.toLowerCase() } : {}),
-      ...(search ? { search } : {}),
-    })}`),
+    queryFn: () => experimentService.list({ category: activeFilter !== 'All' ? activeFilter.toLowerCase() : undefined, search }),
   })
   const { data: savedItems = [] } = useQuery({
     queryKey: ['saved-experiments'],
-    queryFn: () => apiRequest<SavedExperimentData[]>('/saved-experiments/'),
+    queryFn: experimentService.getSaved,
     enabled: Boolean(user),
   })
   const savedSlugs = new Set(savedItems.map((item) => item.experiment.slug))
   const saveExperiment = useMutation({
-    mutationFn: ({ slug, saved }: { slug: string; saved: boolean }) => apiRequest(`/experiments/${slug}/save/`, { method: saved ? 'DELETE' : 'POST' }),
+    mutationFn: ({ slug, saved }: { slug: string; saved: boolean }) => experimentService.toggleSaved(slug, saved),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saved-experiments'] }),
   })
   const toggleSave = (event: React.MouseEvent, slug: string) => {
