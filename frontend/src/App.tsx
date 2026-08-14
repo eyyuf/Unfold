@@ -797,9 +797,9 @@ function LandingScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             </Btn>
           </div>
           <div style={{ marginTop: 32, display: 'flex', gap: 24 }}>
-            {[{ n: 2400, s: '+', l: 'experiments started' }, { n: 94, s: '%', l: 'find it insightful' }, { n: 5, s: ' min', l: 'to first check-in' }].map(({ n, s, l }) => (
+            {[{ v: 'Short', l: 'real-world trials' }, { v: 'Daily', l: 'honest check-ins' }, { v: 'Private', l: 'personal evidence' }].map(({ v, l }) => (
               <div key={l}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: C.t1 }}><AnimatedCounter value={n} suffix={s} /></div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.t1 }}>{v}</div>
                 <div style={{ fontSize: 13, color: C.t4 }}>{l}</div>
               </div>
             ))}
@@ -1073,6 +1073,13 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   if (!active) return <EmptyState title="Your next discovery starts with one small experiment" copy="Choose a short experiment to begin collecting evidence." action="Explore experiments" onAction={() => setScreen('library')} />
   const day = active.current_day
   const task = active.experiment.daily_tasks.find((item) => item.day === day)
+  const recentSignalAverages = active.recent_checkins.length ? [
+    { label: 'curiosity', value: active.recent_checkins.reduce((sum, item) => sum + item.curiosity, 0) / active.recent_checkins.length },
+    { label: 'energy', value: active.recent_checkins.reduce((sum, item) => sum + item.energy, 0) / active.recent_checkins.length },
+    { label: 'meaning', value: active.recent_checkins.reduce((sum, item) => sum + item.meaning, 0) / active.recent_checkins.length },
+    { label: 'enjoyment', value: active.recent_checkins.reduce((sum, item) => sum + item.enjoyment, 0) / active.recent_checkins.length },
+  ].sort((a, b) => b.value - a.value) : []
+  const strongestRecentSignal = recentSignalAverages[0]
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
       {/* Header */}
@@ -1112,7 +1119,7 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={13} /> ~{active.experiment.minutes_per_day} min/day</span>
         </div>
 
-        <ProgressBar value={day} max={active.experiment.duration_days} label="Progress" />
+        <ProgressBar value={active.checkin_count} max={active.experiment.duration_days} label="Progress" />
 
         {active.checkin_count >= 2 && (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: `${C.orange}18`, color: C.orange, fontSize: 12, fontWeight: 700, marginTop: 8 }}>
@@ -1126,11 +1133,11 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
             <div key={d} style={{
               width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12, fontWeight: 600,
-               background: d < day ? C.acc : d === day ? C.accS : C.s2,
-               color: d < day ? '#052e16' : d === day ? C.acc : C.t4,
+               background: d <= active.checkin_count ? C.acc : d === day ? C.accS : C.s2,
+               color: d <= active.checkin_count ? '#052e16' : d === day ? C.acc : C.t4,
                border: d === day ? `1px solid ${C.accB}` : 'none',
             }}>
-               {d < day ? <Check size={13} /> : d}
+               {d <= active.checkin_count ? <Check size={13} /> : d}
             </div>
           ))}
         </div>
@@ -1216,14 +1223,14 @@ function HomeScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </div>
 
       {/* Pattern hint */}
-      {active.recent_checkins.length >= 2 && <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }} >
+      {active.recent_checkins.length >= 2 && strongestRecentSignal && <Card style={{ background: `${C.purple}0e`, border: `1px solid ${C.purple}25` }} >
         <div className="slide-in-up" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
           <div style={{ width: 36, height: 36, borderRadius: 9, background: `${C.purple}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <TrendingUp size={17} color={C.purple} />
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: C.purple, marginBottom: 4, letterSpacing: '0.04em' }}>PATTERN FORMING</div>
-            <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.55 }}>Your curiosity scores have been consistently high. A pattern may be emerging around creative observation.</p>
+            <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.55 }}>Across your latest check-ins, {strongestRecentSignal.label} is the strongest signal at {strongestRecentSignal.value.toFixed(1)}/5. Keep collecting evidence to see whether it persists.</p>
           </div>
         </div>
       </Card>}
