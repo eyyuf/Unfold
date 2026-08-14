@@ -548,6 +548,29 @@ h1, h2, h3, h4, p { margin-top: 0; }
   background: linear-gradient(to bottom, var(--acc-border), transparent);
 }
 
+.vault-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.vault-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.vault-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
 /* ─── Enhanced Input Styles ────────────────────────────────────────────────── */
 input, textarea, select {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -626,4 +649,9 @@ input:focus, textarea:focus, select:focus {
   .auth-split { grid-template-columns: 1fr !important; }
   .auth-branding { display: none !important; }
   .experiment-grid-landing { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
+  .vault-header { align-items: center; }
+  .vault-summary-grid { grid-template-columns: 1fr; gap: 8px; }
+  .vault-entry { margin-left: 20px !important; }
+  .vault-entry-header { flex-direction: column; gap: 8px; }
+  .timeline-line { left: 10px; }
 }

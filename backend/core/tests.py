@@ -65,6 +65,37 @@ class ApiFlowTests(TestCase):
         self.assertEqual(active.data["current_day"], 2)
         self.assertEqual(active.data["recent_checkins"][0]["curiosity"], 5)
 
+    def test_checkins_are_limited_to_active_experiment_plan(self):
+        user = User.objects.create_user("bounds@example.com", "a-secure-password")
+        self.client.force_authenticate(user)
+        started = self.client.post("/api/v1/experiments/photography-walk/start/", {}, format="json")
+        item_id = started.data["id"]
+
+        too_early = self.client.post(
+            f"/api/v1/user-experiments/{item_id}/checkins/",
+            {"day": 0, "curiosity": 4},
+            format="json",
+        )
+        too_late = self.client.post(
+            f"/api/v1/user-experiments/{item_id}/checkins/start/",
+            {"day_number": 8},
+            format="json",
+        )
+        self.assertEqual(too_early.status_code, 400)
+        self.assertEqual(too_late.status_code, 400)
+
+        self.client.post(
+            f"/api/v1/user-experiments/{item_id}/final-reflection/",
+            {"repeat_intent": 4, "summary": "Useful evidence."},
+            format="json",
+        )
+        after_completion = self.client.post(
+            f"/api/v1/user-experiments/{item_id}/checkins/",
+            {"day": 2, "curiosity": 4},
+            format="json",
+        )
+        self.assertEqual(after_completion.status_code, 404)
+
     def test_profile_activity_returns_checkin_streaks(self):
         user = User.objects.create_user("streak@example.com", "a-secure-password", timezone="UTC")
         self.client.force_authenticate(user)

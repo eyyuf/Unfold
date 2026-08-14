@@ -1,3 +1,5 @@
+import os
+
 from django.core.management.base import BaseCommand
 from accounts.models import User
 from experiments.models import Experiment, ExperimentTrait, ExperimentTraitWeight
@@ -5,20 +7,23 @@ from insights.models import PatternDefinition
 
 
 class Command(BaseCommand):
-    help = "Seeds initial ExperimentTraits, trait weights for starter experiments, PatternDefinitions, and default admin user."
+    help = "Seeds experiment traits, weights, and pattern definitions. Optionally creates an admin from environment variables."
 
     def handle(self, *args, **kwargs):
-        # Create or update default admin user
-        admin_email = "admin@unfold.local"
-        admin_user, created = User.objects.get_or_create(
-            email=admin_email,
-            defaults={"is_staff": True, "is_superuser": True, "display_name": "Admin"}
-        )
-        admin_user.is_staff = True
-        admin_user.is_superuser = True
-        admin_user.set_password("admin123456")
-        admin_user.save()
-        self.stdout.write(self.style.SUCCESS(f"Default admin user ready: {admin_email} / admin123456"))
+        admin_email = os.environ.get("UNFOLD_ADMIN_EMAIL")
+        admin_password = os.environ.get("UNFOLD_ADMIN_PASSWORD")
+        if admin_email and admin_password:
+            admin_user, _created = User.objects.get_or_create(
+                email=admin_email,
+                defaults={"is_staff": True, "is_superuser": True, "display_name": "Admin"},
+            )
+            admin_user.is_staff = True
+            admin_user.is_superuser = True
+            admin_user.set_password(admin_password)
+            admin_user.save()
+            self.stdout.write(self.style.SUCCESS(f"Environment-configured admin ready: {admin_email}"))
+        elif admin_email or admin_password:
+            self.stdout.write(self.style.WARNING("Admin creation skipped: set both UNFOLD_ADMIN_EMAIL and UNFOLD_ADMIN_PASSWORD."))
         traits_data = [
             ("creative", "Creative", "Creative activities repeatedly produce positive signals for you."),
             ("technical", "Technical", "Technical & analytical tasks suit your problem-solving style."),
@@ -71,14 +76,14 @@ class Command(BaseCommand):
             "teach-someone": {
                 "teaching": 5, "service": 4, "social": 4, "speaking": 4, "learning": 3, "leadership": 2
             },
-            "coding-kata": {
+            "code-a-small-project": {
                 "technical": 5, "abstract_problem_solving": 5, "learning": 4, "solitary": 4, "building": 2, "structured": 3
             },
-            "build-web-page": {
-                "technical": 5, "building": 5, "tangible_output": 5, "creative": 3, "solitary": 3, "learning": 4
-            },
-            "outdoor-walk": {
+            "morning-nature-walk": {
                 "outdoors": 5, "physical": 3, "exploration": 4, "solitary": 4, "autonomy": 4
+            },
+            "strength-training": {
+                "physical": 5, "structured": 4, "autonomy": 3, "learning": 2
             },
         }
 

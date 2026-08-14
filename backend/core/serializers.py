@@ -140,9 +140,11 @@ class UserExperimentSerializer(serializers.ModelSerializer):
             {
                 "day": checkin.day,
                 "notes": checkin.notes,
+                "enjoyment": checkin.enjoyment or 3,
                 "energy": checkin.energy,
                 "curiosity": checkin.curiosity or 3,
                 "meaning": checkin.meaning or 3,
+                "desire_to_continue": checkin.desire_to_continue or 3,
             }
             for checkin in obj.checkins.order_by("-day")[:3]
         ]

@@ -58,10 +58,12 @@ def get_contrast_recommendation(user, hypothesis) -> Optional[Dict[str, Any]]:
 
     if not scored_candidates:
         # Fallback to any published candidate with target trait if filtering was too strict
-        exp = candidate_weights.first().experiment
+        selected_weight = candidate_weights.first()
+        exp = selected_weight.experiment
+        target_strength = selected_weight.weight
     else:
         scored_candidates.sort(key=lambda x: x[0], reverse=True)
-        exp = scored_candidates[0][1]
+        _score, exp, target_strength, _novel_count = scored_candidates[0]
 
     # Generate explanation text using template
     if completed_titles:
@@ -73,7 +75,7 @@ def get_contrast_recommendation(user, hypothesis) -> Optional[Dict[str, Any]]:
         )
     else:
         explanation = (
-            f"This experiment features '{target_trait.name}' (weighted {cw.weight}/5) "
+            f"This experiment features '{target_trait.name}' (weighted {target_strength}/5) "
             f"to help test your emerging hypothesis."
         )
 
