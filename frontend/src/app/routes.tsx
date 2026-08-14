@@ -28,14 +28,47 @@ import { useAuth } from '@/hooks/useAuth'
 import type { Screen } from '@/types'
 
 export const paths: Record<Screen, string> = {
-  landing: '/', login: '/login', register: '/register', 'forgot-password': '/forgot-password', 'reset-password': '/reset-password',
-  privacy: '/privacy', terms: '/terms', onboarding: '/onboarding', home: '/app', library: '/app/explore',
-  detail: '/app/experiments/photography-walk', commit: '/app/experiments/photography-walk/commit', saved: '/app/saved', checkin: '/app/check-in',
-  'checkin-done': '/app/check-in/complete', reflection: '/app/reflection', report: '/app/report',
-  insights: '/app/insights', learned: '/app/insights/learned', vault: '/app/vault', profile: '/app/profile', help: '/app/help',
+  landing: '/',
+  login: '/login',
+  register: '/register',
+  'forgot-password': '/forgot-password',
+  'reset-password': '/reset-password',
+  privacy: '/privacy',
+  terms: '/terms',
+  onboarding: '/onboarding',
+  home: '/app',
+  library: '/app/explore',
+  detail: '/app/experiments/photography-walk',
+  commit: '/app/experiments/photography-walk/commit',
+  saved: '/app/saved',
+  checkin: '/app/check-in',
+  'checkin-done': '/app/check-in/complete',
+  reflection: '/app/reflection',
+  report: '/app/report',
+  insights: '/app/insights',
+  learned: '/app/insights/learned',
+  vault: '/app/vault',
+  profile: '/app/profile',
+  help: '/app/help',
 }
 
-const authenticatedScreens: Screen[] = ['onboarding', 'home', 'library', 'detail', 'commit', 'saved', 'checkin', 'checkin-done', 'reflection', 'report', 'insights', 'learned', 'vault', 'profile', 'help']
+const authenticatedScreens: Screen[] = [
+  'onboarding',
+  'home',
+  'library',
+  'detail',
+  'commit',
+  'saved',
+  'checkin',
+  'checkin-done',
+  'reflection',
+  'report',
+  'insights',
+  'learned',
+  'vault',
+  'profile',
+  'help',
+]
 
 function screenForPath(pathname: string): Screen {
   if (pathname.startsWith('/app/reports/')) return 'report'
@@ -52,14 +85,22 @@ export function AppRoutes() {
   const { data: user, isLoading: authLoading } = useAuth()
 
   switch (screen) {
-    case 'landing': return <LandingPage setScreen={setScreen} />
-    case 'login': return <LoginPage setScreen={setScreen} />
-    case 'register': return <RegisterPage setScreen={setScreen} />
-    case 'forgot-password': return <ForgotPasswordPage setScreen={setScreen} />
-    case 'reset-password': return <ResetPasswordPage setScreen={setScreen} />
-    case 'privacy': return <PrivacyPage setScreen={setScreen} />
-    case 'terms': return <TermsPage setScreen={setScreen} />
-    default: break
+    case 'landing':
+      return <LandingPage setScreen={setScreen} />
+    case 'login':
+      return <LoginPage setScreen={setScreen} />
+    case 'register':
+      return <RegisterPage setScreen={setScreen} />
+    case 'forgot-password':
+      return <ForgotPasswordPage setScreen={setScreen} />
+    case 'reset-password':
+      return <ResetPasswordPage setScreen={setScreen} />
+    case 'privacy':
+      return <PrivacyPage setScreen={setScreen} />
+    case 'terms':
+      return <TermsPage setScreen={setScreen} />
+    default:
+      break
   }
 
   if (!authenticatedScreens.includes(screen)) return null
@@ -72,20 +113,36 @@ export function AppRoutes() {
 
   const content = (() => {
     switch (screen) {
-      case 'home': return <DashboardPage setScreen={setScreen} />
-      case 'library': return <ExperimentsPage setScreen={setScreen} />
-      case 'detail': return <ExperimentDetailsPage setScreen={setScreen} />
-      case 'commit': return <ExperimentCommitPage setScreen={setScreen} />
-      case 'saved': return <SavedExperimentsPage setScreen={setScreen} />
-      case 'report': return <ExperimentReportPage setScreen={setScreen} />
-      case 'insights': return <InsightsPage setScreen={setScreen} />
-      case 'learned': return <LearnedPatternsPage setScreen={setScreen} />
-      case 'vault': return <EvidenceVaultPage setScreen={setScreen} />
-      case 'profile': return <ProfilePage setScreen={setScreen} />
-      case 'help': return <HelpPage setScreen={setScreen} />
-      default: return null
+      case 'home':
+        return <DashboardPage setScreen={setScreen} />
+      case 'library':
+        return <ExperimentsPage setScreen={setScreen} />
+      case 'detail':
+        return <ExperimentDetailsPage setScreen={setScreen} />
+      case 'commit':
+        return <ExperimentCommitPage setScreen={setScreen} />
+      case 'saved':
+        return <SavedExperimentsPage setScreen={setScreen} />
+      case 'report':
+        return <ExperimentReportPage setScreen={setScreen} />
+      case 'insights':
+        return <InsightsPage setScreen={setScreen} />
+      case 'learned':
+        return <LearnedPatternsPage setScreen={setScreen} />
+      case 'vault':
+        return <EvidenceVaultPage setScreen={setScreen} />
+      case 'profile':
+        return <ProfilePage setScreen={setScreen} />
+      case 'help':
+        return <HelpPage setScreen={setScreen} />
+      default:
+        return null
     }
   })()
 
-  return <AppLayout screen={screen} setScreen={setScreen}>{content}</AppLayout>
+  return (
+    <AppLayout screen={screen} setScreen={setScreen}>
+      {content}
+    </AppLayout>
+  )
 }

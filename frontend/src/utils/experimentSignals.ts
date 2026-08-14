@@ -5,7 +5,8 @@ export type SignalAverage = { label: string; value: number }
 export function getStrongestRecentSignal(active: ActiveExperiment): SignalAverage | undefined {
   if (!active.recent_checkins.length) return undefined
   const average = (field: 'curiosity' | 'energy' | 'meaning' | 'enjoyment') =>
-    active.recent_checkins.reduce((sum, item) => sum + item[field], 0) / active.recent_checkins.length
+    active.recent_checkins.reduce((sum, item) => sum + item[field], 0) /
+    active.recent_checkins.length
 
   return [
     { label: 'curiosity', value: average('curiosity') },

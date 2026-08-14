@@ -28,7 +28,14 @@ export function HypothesisCard({
 
   return (
     <Card style={{ background: `${color}09`, border: `1px solid ${color}25`, marginBottom: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: 10,
+        }}
+      >
         <Badge label={hypothesis.status_display} color={color} />
         <span style={{ fontSize: 12, color: C.t4 }}>
           {hypothesis.evidence_count} experiment{hypothesis.evidence_count !== 1 ? 's' : ''}
@@ -41,14 +48,37 @@ export function HypothesisCard({
 
       <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.6, marginBottom: 14 }}>
         {hypothesis.status === 'contradicted'
-          ? (hypothesis.trait.negative_hypothesis_text || `${hypothesis.trait.name} activities have not consistently produced positive signals yet.`)
-          : (hypothesis.trait.positive_hypothesis_text || `${hypothesis.trait.name} activities repeatedly produce positive signals for you.`)}
+          ? hypothesis.trait.negative_hypothesis_text ||
+            `${hypothesis.trait.name} activities have not consistently produced positive signals yet.`
+          : hypothesis.trait.positive_hypothesis_text ||
+            `${hypothesis.trait.name} activities repeatedly produce positive signals for you.`}
       </p>
-      <p style={{ fontSize: 12, color: C.t4, lineHeight: 1.55, margin: '-6px 0 14px' }}>{statusMeaning[hypothesis.status]} This can change as you test it in new settings.</p>
+      <p style={{ fontSize: 12, color: C.t4, lineHeight: 1.55, margin: '-6px 0 14px' }}>
+        {statusMeaning[hypothesis.status]} This can change as you test it in new settings.
+      </p>
 
-      <div style={{ display: 'flex', gap: 16, fontSize: 13, color: C.t3, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div>Support: <span style={{ fontWeight: 700, color: C.t1 }}>{Math.round(hypothesis.support_score)}%</span></div>
-        <div>Confidence: <span style={{ fontWeight: 700, color: C.t1 }}>{Math.round(hypothesis.confidence_score)}%</span></div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          fontSize: 13,
+          color: C.t3,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          Support:{' '}
+          <span style={{ fontWeight: 700, color: C.t1 }}>
+            {Math.round(hypothesis.support_score)}%
+          </span>
+        </div>
+        <div>
+          Confidence:{' '}
+          <span style={{ fontWeight: 700, color: C.t1 }}>
+            {Math.round(hypothesis.confidence_score)}%
+          </span>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

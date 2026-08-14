@@ -1,5 +1,10 @@
 import { apiRequest } from '@/api/client'
-import type { ContrastRecommendationData, EvidenceItem, InsightsData, UserHypothesisData } from '@/types'
+import type {
+  ContrastRecommendationData,
+  EvidenceItem,
+  InsightsData,
+  UserHypothesisData,
+} from '@/types'
 
 export const insightService = {
   getInsights: () => apiRequest<InsightsData>('/insights/'),
