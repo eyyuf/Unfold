@@ -8,7 +8,9 @@
     "build": "vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "format": "oxfmt"
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -33,7 +35,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
     "jsdom": "^29.1.1",
-    "oxfmt": "^0.2.0",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "vite": "^8.0.0",

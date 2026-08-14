@@ -53,10 +53,13 @@ python backend/manage.py runserver
 
 ```bash
 npm --prefix frontend test
+npm --prefix frontend run typecheck
 npm --prefix frontend run build
-npx --prefix frontend tsc --noEmit
+npm --prefix frontend run format:check
 python backend/manage.py test
 python backend/manage.py check
+python -m black --check backend
+python -m isort --check-only backend
 ```
 
 ## Production
