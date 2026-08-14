@@ -122,7 +122,7 @@ type ExperimentData = {
 type ActiveExperiment = {
   id: number; start_date: string; experiment: ExperimentData
   checkin_count: number; current_day: number
-  recent_checkins: { day: number; notes: string; energy: number; curiosity: number; meaning: number; motivation_before?: number; satisfaction_after?: number }[]
+  recent_checkins: { day: number; notes: string; enjoyment: number; energy: number; curiosity: number; meaning: number; desire_to_continue: number; motivation_before?: number; satisfaction_after?: number }[]
 }
 type ExperimentReport = {
   id: number; status: string; start_date: string; experiment: ExperimentData; checkin_count: number
@@ -150,6 +150,12 @@ type UserHypothesisData = {
 type ContrastRecommendationData = {
   hypothesis: { id: number; trait: string; trait_name: string; support_score: number; confidence_score: number; status: string }
   recommended_experiment: { id: number; slug: string; title: string; category: string; description: string; duration_days: number; minutes_per_day: number; reason: string }
+}
+type InsightsData = {
+  completed_count: number; average_fit: number; average_curiosity: number; average_repeat_intent: number; average_consistency: number
+  patterns: string[]; categories: { label: string; value: number; count: number }[]
+  evidence_map: { id: number; label: string; category: string; fit_signal: number; strongest_signal: string }[]
+  next_recommendation?: ContrastRecommendationData | null
 }
 
 function useActiveExperiment() {
@@ -1458,6 +1464,7 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   if (isLoading) return <LoadingBlock label="Loading experiment…" />
   if (error || !experiment) return <ErrorBlock message="This experiment could not be loaded." onRetry={() => refetch()} />
   const tasks = experiment.daily_tasks.slice(0, 3).map((task) => task.instructions)
+  const testedTraits = (experiment.trait_weights ?? []).filter((item) => item.weight >= 3).slice(0, 3).map((item) => item.trait.name.toLowerCase())
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
@@ -1492,14 +1499,23 @@ function DetailScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       </div>
 
       {/* Sections */}
+      <Card style={{ marginBottom: 28, background: C.accS, border: `1px solid ${C.accB}` }}>
+        <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.65 }}>
+          <strong style={{ color: C.acc }}>An experiment is a short, low-pressure trial.</strong> Do the activity, check in honestly, and use your responses as evidence about what fits you.
+        </p>
+      </Card>
       {[
         {
           title: 'What you will do',
-          content: 'Each day you will take a 30-minute walk with the specific goal of photographing a theme — shadows, textures, movement, color. You will record what you noticed and how the activity felt, not whether the photos were good.',
+          content: tasks.length
+            ? `Follow one small prompt each day for about ${experiment.minutes_per_day} minutes, then record how the activity affected your energy, curiosity, meaning, and desire to continue. The goal is honest observation, not performance.`
+            : `Try this activity for about ${experiment.minutes_per_day} minutes each day and record how the experience felt. The goal is honest observation, not performance.`,
         },
         {
           title: 'What this may reveal',
-          content: 'This experiment may help you notice whether creative work energizes you, whether you naturally want to improve your craft, and whether you enjoy producing something tangible regularly. It may also surface how you respond to constraints and open-ended tasks.',
+          content: testedTraits.length
+            ? `This may reveal whether ${testedTraits.join(', ')} activities produce repeatable positive signals for you. One result is a clue, and later experiments help test whether it holds in another setting.`
+            : 'This may reveal which parts of the activity energize you, hold your curiosity, or feel meaningful. One result is a clue, and later experiments help test whether it holds in another setting.',
         },
       ].map(({ title, content }) => (
         <div key={title} style={{ marginBottom: 28, paddingBottom: 28, borderBottom: `1px solid ${C.br}` }}>
@@ -1793,6 +1809,15 @@ function CheckinScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
 // Check-in done state
 function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const { data: active } = useActiveExperiment()
+  const latest = active?.recent_checkins[0]
+  const signals = latest ? [
+    { l: 'Enjoyment', v: latest.enjoyment },
+    { l: 'Energy', v: latest.energy },
+    { l: 'Curiosity', v: latest.curiosity },
+    { l: 'Meaning', v: latest.meaning },
+  ] : []
+  const strongest = signals.reduce<{ l: string; v: number } | null>((best, signal) => !best || signal.v > best.v ? signal : best, null)
+  const readyToFinish = Boolean(active && active.checkin_count >= active.experiment.duration_days)
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }} className="fade-up">
@@ -1809,25 +1834,26 @@ function CheckinDoneScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           You have added another piece of evidence. {active?.checkin_count ?? 1} check-in{active?.checkin_count === 1 ? '' : 's'} collected.
         </p>
 
-        <Card style={{ textAlign: 'left', marginBottom: 20 }}>
+        {latest && <Card style={{ textAlign: 'left', marginBottom: 20 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.t4, marginBottom: 12, letterSpacing: '0.05em' }}>TODAY'S SIGNALS</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[{ l: 'Enjoyment', v: 4 }, { l: 'Energy', v: 5 }, { l: 'Curiosity', v: 5 }, { l: 'Meaning', v: 3 }].map(({ l, v }) => (
+            {signals.map(({ l, v }) => (
               <ScoreBar key={l} label={l} value={v * 20} />
             ))}
           </div>
-        </Card>
+        </Card>}
 
-        <Card style={{ background: C.accS, border: `1px solid ${C.accB}`, textAlign: 'left', marginBottom: 24 }}>
+        {strongest && <Card style={{ background: C.accS, border: `1px solid ${C.accB}`, textAlign: 'left', marginBottom: 24 }}>
           <p style={{ fontSize: 14, color: C.t2, lineHeight: 1.6 }}>
-            <strong style={{ color: C.acc }}>Your curiosity was higher today.</strong> On your best days this week, curiosity reached 5/5. A pattern may be forming.
+            <strong style={{ color: C.acc }}>{strongest.l} was today&apos;s strongest signal at {strongest.v}/5.</strong> Keep checking in to see whether that signal repeats.
           </p>
-        </Card>
+        </Card>}
 
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="ghost" full onClick={() => setScreen('home')}>Back to home</Btn>
-          <Btn variant="secondary" full onClick={() => setScreen('reflection')}>Finish experiment</Btn>
+          {readyToFinish && <Btn variant="secondary" full onClick={() => setScreen('reflection')}>Finish experiment</Btn>}
         </div>
+        {!readyToFinish && active && <p style={{ color: C.t4, fontSize: 13, marginTop: 14 }}>{active.experiment.duration_days - active.checkin_count} planned check-in{active.experiment.duration_days - active.checkin_count === 1 ? '' : 's'} remaining before the final reflection.</p>}
       </div>
     </div>
   )
@@ -1875,6 +1901,7 @@ function FinalReflectionScreen({ setScreen }: { setScreen: (s: Screen) => void }
 // ─── SCREEN: Experiment Report ─────────────────────────────────────────────
 function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const reportId = location.pathname.startsWith('/app/reports/') ? location.pathname.split('/').pop() : undefined
   const { data: report, isLoading, error, refetch } = useQuery({
     queryKey: ['experiment-report', reportId ?? 'latest'],
@@ -1883,6 +1910,10 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       const reports = await apiRequest<ExperimentReport[]>('/evidence-vault/')
       return reports[0] ?? null
     },
+  })
+  const { data: insights } = useQuery({
+    queryKey: ['insights'],
+    queryFn: () => apiRequest<InsightsData>('/insights/'),
   })
   if (isLoading) return <LoadingBlock label="Building your report…" />
   if (error) return <ErrorBlock message="This report could not be loaded." onRetry={() => refetch()} />
@@ -1976,15 +2007,15 @@ function ReportScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
       {/* Next experiment */}
       <div>
         <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Explore next</h2>
-        <Card accent onClick={() => setScreen('detail')} style={{ cursor: 'pointer' }}>
+        <Card accent onClick={() => insights?.next_recommendation ? navigate(`/app/experiments/${insights.next_recommendation.recommended_experiment.slug}`) : setScreen('library')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ width: 44, height: 44, borderRadius: 11, background: `${C.purple}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <BookOpen size={20} color={C.purple} />
             </div>
             <div style={{ flex: 1 }}>
-              <Badge label="Creative" color={C.purple} />
-              <h3 style={{ fontSize: 15, fontWeight: 700, margin: '6px 0 4px' }}>Write One Page a Day</h3>
-              <p style={{ fontSize: 13, color: C.t3 }}>7 days · 20 min/day · Your curiosity pattern suggests this fits.</p>
+              <Badge label={insights?.next_recommendation?.recommended_experiment.category ?? 'Explore'} color={C.purple} />
+              <h3 style={{ fontSize: 15, fontWeight: 700, margin: '6px 0 4px' }}>{insights?.next_recommendation?.recommended_experiment.title ?? 'Choose another experiment'}</h3>
+              <p style={{ fontSize: 13, color: C.t3 }}>{insights?.next_recommendation?.recommended_experiment.reason ?? 'Compare this result with another short trial from the library.'}</p>
             </div>
             <ChevronRight size={16} color={C.acc} />
           </div>
@@ -2393,19 +2424,43 @@ function LearnedScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   )
 }
 
+function HowUnfoldLearns() {
+  const steps = [
+    { label: 'You try', Icon: Play },
+    { label: 'Reflect', Icon: Sparkles },
+    { label: 'Evidence', Icon: Archive },
+    { label: 'Patterns', Icon: TrendingUp },
+    { label: 'Hypothesis', Icon: Brain },
+    { label: 'Test again', Icon: Compass },
+  ]
+  return (
+    <Card style={{ marginBottom: 28, background: `linear-gradient(135deg, ${C.accS}, ${C.s1})`, border: `1px solid ${C.accB}` }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.acc, letterSpacing: '0.05em', marginBottom: 8 }}>HOW UNFOLD LEARNS</div>
+      <p style={{ color: C.t3, fontSize: 14, lineHeight: 1.6, marginBottom: 18 }}>Unfold does not assign you a fixed identity. It turns repeated, self-reported experiences into assumptions you can test.</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {steps.map(({ label, Icon }, index) => <div key={label} style={{ display: 'contents' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 11px', borderRadius: 10, background: C.s2, border: `1px solid ${C.br}`, fontSize: 12, fontWeight: 700, color: C.t2 }}><Icon size={14} color={C.acc} />{label}</div>
+          {index < steps.length - 1 && <ArrowRight size={14} color={C.t4} aria-hidden="true" />}
+        </div>)}
+      </div>
+    </Card>
+  )
+}
+
 function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
   const navigate = useNavigate()
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['insights'],
-    queryFn: () => apiRequest<{
-      completed_count: number; average_fit: number; average_curiosity: number; average_repeat_intent: number; average_consistency: number
-      patterns: string[]; categories: { label: string; value: number; count: number }[]
-      evidence_map: { id: number; label: string; category: string; fit_signal: number; strongest_signal: string }[]
-    }>('/insights/'),
+    queryFn: () => apiRequest<InsightsData>('/insights/'),
   })
   if (isLoading) return <LoadingBlock label="Finding patterns in your evidence…" />
   if (error) return <ErrorBlock message="Your insights could not be loaded." onRetry={() => refetch()} />
-  if (!data?.completed_count) return <EmptyState title="Patterns need more than one clue" copy="Complete your first experiment to begin seeing personal patterns." action="Explore experiments" onAction={() => setScreen('library')} />
+  if (!data?.completed_count) return <div style={{ maxWidth: 840, margin: '0 auto', padding: '32px 24px' }} className="fade-up">
+    <h1 className="font-serif" style={{ fontSize: 32, marginBottom: 6 }}>Your insights</h1>
+    <p style={{ fontSize: 15, color: C.t3, marginBottom: 28 }}>Patterns grow as you complete experiments.</p>
+    <HowUnfoldLearns />
+    <EmptyState title="Patterns need more than one clue" copy="Complete your first experiment to begin seeing personal patterns." action="Explore experiments" onAction={() => setScreen('library')} />
+  </div>
   const patterns = (data?.patterns ?? []).map((text, index) => ({ text, color: [C.purple, C.blue, C.acc][index % 3], Icon: [Star, Brain, TrendingUp][index % 3] }))
   const categoryColors: Record<string, string> = { Creative: C.purple, Technical: C.blue, Social: C.orange, Nature: C.acc, Service: C.teal, Business: C.indigo, Physical: C.amber }
   const categories = data.categories.map((item) => ({ label: item.label, v: item.value, n: item.count, color: categoryColors[item.label] ?? C.acc }))
@@ -2421,6 +2476,8 @@ function InsightsScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
           What I've learned <ChevronRight size={14} />
         </Btn>
       </div>
+
+      <HowUnfoldLearns />
 
       {/* Constellation evidence map */}
       <Card style={{ marginBottom: 28, padding: '28px', overflow: 'hidden', position: 'relative', background: `radial-gradient(ellipse at 30% 30%, rgba(34,197,94,0.05) 0%, transparent 60%)` }}>

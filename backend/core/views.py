@@ -317,10 +317,11 @@ def abandon_experiment(request, pk):
 
 @api_view(["POST"])
 def submit_checkin(request, pk):
-    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
     serializer = CheckInSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    if serializer.validated_data.get("day", 1) > item.experiment.duration_days:
+    day = serializer.validated_data.get("day", 1)
+    if day < 1 or day > item.experiment.duration_days:
         return Response({"detail": "This day is outside the experiment plan."}, status=status.HTTP_400_BAD_REQUEST)
     checkin_data = dict(serializer.validated_data)
     checkin_data["is_complete"] = True
@@ -330,8 +331,13 @@ def submit_checkin(request, pk):
 
 @api_view(["POST"])
 def start_checkin(request, pk):
-    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
-    day_number = request.data.get("day_number", 1)
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
+    try:
+        day_number = int(request.data.get("day_number", 1))
+    except (ValueError, TypeError):
+        return Response({"detail": "Day must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+    if day_number < 1 or day_number > item.experiment.duration_days:
+        return Response({"detail": "This day is outside the experiment plan."}, status=status.HTTP_400_BAD_REQUEST)
     motivation_before = request.data.get("motivation_before")
     if motivation_before is not None:
         try:
@@ -354,7 +360,7 @@ def start_checkin(request, pk):
 
 @api_view(["PATCH"])
 def update_checkin_patch(request, pk, checkin_id):
-    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
     checkin = get_object_or_404(CheckIn, pk=checkin_id, user_experiment=item)
     serializer = CheckInSerializer(checkin, data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
@@ -364,7 +370,7 @@ def update_checkin_patch(request, pk, checkin_id):
 
 @api_view(["POST"])
 def final_reflection(request, pk):
-    item = get_object_or_404(UserExperiment, pk=pk, user=request.user)
+    item = get_object_or_404(UserExperiment, pk=pk, user=request.user, status="active")
     serializer = FinalReflectionSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     reflection, _ = FinalReflection.objects.update_or_create(user_experiment=item, defaults=serializer.validated_data)
@@ -546,6 +552,13 @@ def insights_view(request):
 
     hypotheses = UserHypothesis.objects.filter(user=request.user).select_related("trait")
     hypotheses_data = UserHypothesisSerializer(hypotheses, many=True).data
+    next_recommendation = None
+    for hypothesis in hypotheses.order_by("-confidence_score", "-support_score"):
+        if hypothesis.status not in (UserHypothesis.Status.SUPPORTED, UserHypothesis.Status.EMERGING):
+            continue
+        next_recommendation = get_contrast_recommendation(request.user, hypothesis)
+        if next_recommendation:
+            break
 
     return Response({
         "completed_count": len(reports),
@@ -556,6 +569,7 @@ def insights_view(request):
         "categories": [{"label": name, "value": round(sum(values) / len(values)), "count": len(values)} for name, values in categories.items()],
         "patterns": [f"{report['strongest_signal']} is your strongest signal in {report['experiment']['title']}" for report in reports[:3]],
         "hypotheses": hypotheses_data,
+        "next_recommendation": next_recommendation,
         "evidence_map": [
             {
                 "id": report["id"],
