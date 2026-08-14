@@ -1,0 +1,272 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.empty {
+  padding: 40px;
+  color: var(--t3);
+}
+
+.backButton {
+  margin-bottom: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--t3);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.summaryHeader {
+  margin-bottom: 32px;
+}
+
+.summaryMeta {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.startDate {
+  color: var(--t4);
+  font-size: 13px;
+}
+
+.title {
+  margin-bottom: 4px;
+  font-size: 32px;
+}
+
+.summaryDetails {
+  color: var(--t3);
+  font-size: 15px;
+}
+
+.fitCard {
+  margin-bottom: 24px;
+  padding: 32px 24px !important;
+  text-align: center;
+}
+
+.eyebrow {
+  margin-bottom: 12px;
+  color: var(--t4);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.fitSignal {
+  margin-bottom: 8px;
+  color: var(--acc);
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.confidence {
+  margin-bottom: 12px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--t2);
+  border: 1px solid var(--br);
+  border-radius: 999px;
+  background: var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.confidenceValue {
+  color: var(--acc);
+}
+
+.fitCopy {
+  max-width: 380px;
+  margin: 0 auto;
+  color: var(--t3);
+  font-size: 14px;
+}
+
+.motivationCard {
+  margin-bottom: 24px;
+  border-color: color-mix(in srgb, var(--blue) 13%, transparent) !important;
+  background: color-mix(in srgb, var(--blue) 5%, transparent) !important;
+}
+
+.motivationLabel,
+.insightLabel {
+  margin-bottom: 6px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.motivationInterpretation {
+  margin-bottom: 4px;
+  color: var(--t1);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.motivationValues {
+  color: var(--t4);
+  font-size: 13px;
+}
+
+.dimensionsCard,
+.suggestionCard {
+  margin-bottom: 24px;
+}
+
+.cardTitle {
+  margin-bottom: 20px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.insights {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.stoodOutCard {
+  border-color: color-mix(in srgb, var(--acc) 13%, transparent) !important;
+  background: color-mix(in srgb, var(--acc) 5.5%, transparent) !important;
+}
+
+.stoodOutCard .insightLabel {
+  margin-bottom: 8px;
+  color: var(--acc);
+}
+
+.patternCard {
+  border-color: color-mix(in srgb, var(--purple) 13%, transparent) !important;
+  background: color-mix(in srgb, var(--purple) 5.5%, transparent) !important;
+}
+
+.patternCard .insightLabel {
+  margin-bottom: 8px;
+  color: var(--purple);
+}
+
+.insightCopy {
+  color: var(--t2);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.patternUpdate {
+  margin-bottom: 4px;
+  color: var(--t2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.suggestionCard .cardTitle {
+  margin-bottom: 12px;
+}
+
+.suggestionCopy {
+  color: var(--t2);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.disclaimer {
+  margin-bottom: 28px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  background: var(--s1);
+}
+
+.disclaimerIcon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--t4);
+}
+
+.disclaimerCopy {
+  color: var(--t4);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.nextTitle {
+  margin-bottom: 14px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.nextContent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nextIcon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--purple);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--purple) 9.5%, transparent);
+}
+
+.nextDetails {
+  min-width: 0;
+  flex: 1;
+}
+
+.nextExperimentTitle {
+  margin: 6px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.nextCopy {
+  color: var(--t3);
+  font-size: 13px;
+}
+
+.nextArrow {
+  flex: 0 0 auto;
+  color: var(--acc);
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 24px 18px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .fitSignal {
+    font-size: 62px;
+  }
+
+  .summaryMeta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

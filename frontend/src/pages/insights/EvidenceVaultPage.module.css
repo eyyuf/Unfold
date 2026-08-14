@@ -1,0 +1,208 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.header {
+  margin-bottom: 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  margin-bottom: 6px;
+  font-size: 32px;
+}
+
+.subtitle {
+  color: var(--t3);
+  font-size: 15px;
+}
+
+.exportButton {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--t4);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.exportButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.summaryGrid {
+  margin-bottom: 28px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  padding: 16px 12px !important;
+  text-align: center;
+}
+
+.summaryValue {
+  margin-bottom: 2px;
+  color: var(--t1);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.summaryLabel {
+  color: var(--t4);
+  font-size: 12px;
+}
+
+.entries {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.timeline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 20px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--acc-border), transparent);
+}
+
+.entryCard {
+  margin-left: 32px !important;
+}
+
+.timelineDot {
+  position: absolute;
+  left: 15px;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  margin-top: 20px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.timelineDotStrong {
+  background: var(--acc);
+}
+
+.entryHeader {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.entryBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.endedLabel {
+  color: var(--t4);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.startDate {
+  color: var(--t4);
+  font-size: 13px;
+}
+
+.entryTitle {
+  margin-bottom: 12px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.entryMetrics {
+  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 14px;
+}
+
+.metricLabel {
+  color: var(--t4);
+  font-size: 12px;
+}
+
+.fitSignal,
+.strongestSignal {
+  color: var(--t2);
+}
+
+.fitSignalMedium {
+  color: var(--amber);
+}
+
+.fitSignalStrong {
+  color: var(--acc);
+}
+
+.entryEvidence {
+  padding-top: 12px;
+  border-top: 1px solid var(--br);
+}
+
+.summary {
+  margin: 0;
+  color: var(--t3);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.sourceNote {
+  margin: 8px 0 0;
+  color: var(--t4);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 24px 18px;
+  }
+
+  .header {
+    align-items: center;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .timeline {
+    left: 10px;
+  }
+
+  .entryCard {
+    margin-left: 20px !important;
+  }
+
+  .entryHeader {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

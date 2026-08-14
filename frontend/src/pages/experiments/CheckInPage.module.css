@@ -1,0 +1,281 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.emptyCard {
+  max-width: 520px;
+  margin: 80px auto;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin-bottom: 10px;
+  font-size: 28px;
+}
+
+.emptyCopy {
+  margin-bottom: 20px;
+  color: var(--t3);
+}
+
+.unavailablePage {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.unavailableCard {
+  width: 100%;
+  max-width: 520px;
+  padding: 32px !important;
+  text-align: center;
+}
+
+.statusIcon {
+  margin-bottom: 16px;
+  color: var(--acc);
+}
+
+.unavailableCopy {
+  margin-bottom: 22px;
+  color: var(--t3);
+  line-height: 1.6;
+}
+
+.header {
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--br);
+  background: var(--bg2);
+}
+
+.closeButton {
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--t3);
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.headerContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerMeta {
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--t4);
+  font-size: 13px;
+}
+
+.experimentLabel {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepLabel {
+  flex: 0 0 auto;
+}
+
+.progressTrack {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--s2);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--acc);
+  transition: width 0.4s ease;
+}
+
+.questionContainer {
+  width: 100%;
+  max-width: 520px;
+  flex: 1;
+  margin: 0 auto;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.questionTitle {
+  margin-bottom: 40px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.completionOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.completionOption {
+  padding: 18px;
+  color: var(--t2);
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  background: var(--s1);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.completionOptionComplete {
+  --option-color: var(--acc);
+}
+
+.completionOptionPartial {
+  --option-color: var(--amber);
+}
+
+.completionOptionMissed {
+  --option-color: var(--t3);
+}
+
+.completionOptionSelected {
+  color: var(--option-color);
+  border-color: color-mix(in srgb, var(--option-color) 34%, transparent);
+  background: color-mix(in srgb, var(--option-color) 8%, transparent);
+}
+
+.ratingButtons {
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ratingButton {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  color: var(--t2);
+  border: 2px solid var(--br);
+  border-radius: 12px;
+  background: var(--s1);
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.ratingButtonSelected {
+  color: var(--acc);
+  border-color: var(--acc);
+  background: var(--acc-soft);
+  transform: scale(1.1);
+}
+
+.ratingLabels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--t4);
+  font-size: 12px;
+}
+
+.noteInput {
+  width: 100%;
+  height: 120px;
+  padding: 14px;
+  resize: none;
+  color: var(--t1);
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  outline: none;
+  background: var(--s1);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.noteCount {
+  margin-top: 6px;
+  color: var(--t4);
+  font-size: 12px;
+  text-align: right;
+}
+
+.noteActions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+}
+
+.error {
+  margin-top: 12px;
+  color: var(--red);
+}
+
+.navigation {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--br);
+}
+
+.navigationButton {
+  min-width: 72px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--t4);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+@media (max-width: 420px) {
+  .header {
+    padding-inline: 18px;
+  }
+
+  .questionContainer {
+    padding-inline: 18px;
+  }
+
+  .ratingButtons {
+    gap: 8px;
+  }
+
+  .ratingButton {
+    width: 52px;
+    height: 56px;
+  }
+
+  .navigation {
+    padding-inline: 18px;
+  }
+}
