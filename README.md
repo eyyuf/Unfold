@@ -42,6 +42,7 @@ npm --prefix frontend install
 npm --prefix frontend run dev
 python -m pip install -r backend/requirements.txt
 python backend/manage.py migrate
+python backend/manage.py loaddata experiments
 python backend/manage.py seed_hypothesis_engine
 python backend/manage.py runserver
 ```
@@ -58,4 +59,6 @@ python backend/manage.py check
 
 ## Production
 
-The included Render blueprint provisions the web service, PostgreSQL database, reminder cron job, generated secret key, HTTPS-aware security settings, and `/api/v1/health/` health check. Configure `RESEND_API_KEY`, `DEFAULT_FROM_EMAIL`, and optionally `SENTRY_DSN` in the hosting environment. Never commit production environment values.
+The included Render blueprint provisions the web service, PostgreSQL database, reminder cron job, generated secret key, HTTPS-aware security settings, and database-aware `/api/v1/health/` health check. Configure the actual `SITE_URL`, `RESEND_API_KEY`, `DEFAULT_FROM_EMAIL`, and optionally `SENTRY_DSN` in the hosting environment. Never commit production environment values.
+
+For the complete demo dataset, production variable list, presentation route, and emergency fallback, see [`docs/BUILDERS_LAB_DEMO.md`](docs/BUILDERS_LAB_DEMO.md).
